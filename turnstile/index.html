@@ -86,6 +86,11 @@
     setInterval(() => {
       fetch('https://demo.clarkmerrick.com/turnstile/api/epoch')
         .then(res => res.text())
+        .then(res => { 
+          if(!res.ok) {
+          throw new Error(`HTTP error! Status: ${res.status}`);
+          }
+        })
         .then(data => {
           console.log("Epoch time:", data);
           document.getElementById("epochTimeDisplay").textContent = "Epoch time: " + data;
