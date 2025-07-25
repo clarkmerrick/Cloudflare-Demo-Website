@@ -57,6 +57,7 @@
               </form>
 
               <p class="mt-3" id="statusMsg" style="color: #0f0;"></p>
+              <p class="mt-3" id="epochTimeDisplay" style="color: #0ff; font-size: 1.2rem;"></p>
             </div>
           </div>
         </div>
@@ -77,9 +78,7 @@
     <script>
   window.turnstileCallback = function(token) {
     console.log("Turnstile token:", token);
-
     document.getElementById("statusMsg").textContent = "Token received! Starting polling…";
-
     startPolling();
   };
 
@@ -89,13 +88,16 @@
         .then(res => res.text())
         .then(data => {
           console.log("Epoch time:", data);
+          document.getElementById("epochTimeDisplay").textContent = "Epoch time: " + data;
         })
         .catch(err => {
           console.error("Error fetching time:", err);
+          document.getElementById("epochTimeDisplay").textContent = "Error fetching epoch time";
         });
     }, 1000);
   }
 </script>
+
 
   </body>
 </html>
