@@ -75,26 +75,27 @@
     </main>
 
     <script>
-      // Listen for Turnstile callback
-      window.turnstileCallback = function(token) {
-        console.log("Turnstile token:", token);
+  window.turnstileCallback = function(token) {
+    console.log("Turnstile token:", token);
 
-        // Here you could POST to a backend/Worker to validate it
-        document.getElementById("statusMsg").textContent = "Token received! Ready to start polling.";
-        
-        // In your real setup: Start polling to /api/time or similar Worker endpoint
-        // startPolling();
-      };
+    document.getElementById("statusMsg").textContent = "Token received! Starting polling…";
 
-      // Optional: Automatically run startPolling if token is already present
-      function startPolling() {
-        setInterval(() => {
-          fetch('/turnstile/api/epoch') // Update with your Worker URL
-            .then(res => res.text())
-            .then(data => console.log("Epoch time:", data))
-            .catch(err => console.error("Error fetching time:", err));
-        }, 1000);
-      }
-    </script>
+    startPolling();
+  };
+
+  function startPolling() {
+    setInterval(() => {
+      fetch('https://demo.clarkmerrick.com/turnstile/api/epoch')
+        .then(res => res.text())
+        .then(data => {
+          console.log("Epoch time:", data);
+        })
+        .catch(err => {
+          console.error("Error fetching time:", err);
+        });
+    }, 1000);
+  }
+</script>
+
   </body>
 </html>
