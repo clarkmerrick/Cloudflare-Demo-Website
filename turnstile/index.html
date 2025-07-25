@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Turnstile Demo | clarkdemo.com</title>
+    <meta name="description" content="Demo Cloudflare Turnstile on clarkdemo.com">
+
+    <!-- Bootstrap core CSS -->
+    <link href="assets/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+      .bd-placeholder-img {
+        font-size: 1.125rem;
+        user-select: none;
+      }
+
+      @media (min-width: 768px) {
+        .bd-placeholder-img-lg {
+          font-size: 3.5rem;
+        }
+      }
+
+      .bg-1 { background-color: #343a40; }
+      .bg-2 { background-color: #495057; }
+      .bg-5 { background-color: #f8f9fa; }
+    </style>
+
+    <!-- Turnstile -->
+    <script src="https://challenges.cloudflare.com/turnstile/v0/api.js" async defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom">
+          <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+            <span class="fs-4">clarkdemo.com</span>
+          </a>
+        </header>
+
+        <div class="p-5 mb-4 bg-1 rounded-3 text-white">
+          <div class="container-fluid py-5">
+            <h1 class="display-5 fw-bold">Cloudflare Turnstile Demo</h1>
+            <p class="fs-5">Complete the Turnstile challenge below to simulate setting a session or clearance.</p>
+          </div>
+        </div>
+
+        <div class="row align-items-md-stretch">
+          <div class="col-lg-12 mb-4">
+            <div class="h-100 p-5 text-white bg-2 rounded-3">
+              <h2>Challenge</h2>
+              <p>Please verify you're human using the Turnstile widget below.</p>
+
+              <!-- Turnstile widget -->
+              <form id="turnstile-form">
+                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmgy4C0TrcKs3-l"></div>
+              </form>
+
+              <p class="mt-3" id="statusMsg" style="color: #0f0;"></p>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-5 mb-4 bg-5 rounded-3">
+          <div class="container-fluid text-dark">
+            <h2 class="fw-bold">Ready for polling</h2>
+            <p class="col-md-8 fs-5">Once validated, the page will be able to call your future Worker every second.</p>
+          </div>
+        </div>
+
+        <footer class="pt-3 mt-4 text-muted border-top">
+          &copy; 2025 - clarkdemo.com
+        </footer>
+      </div>
+    </main>
+
+    <script>
+      // Listen for Turnstile callback
+      window.turnstileCallback = function(token) {
+        console.log("Turnstile token:", token);
+
+        // Here you could POST to a backend/Worker to validate it
+        document.getElementById("statusMsg").textContent = "Token received! Ready to start polling.";
+        
+        // In your real setup: Start polling to /api/time or similar Worker endpoint
+        // startPolling();
+      };
+
+      // Optional: Automatically run startPolling if token is already present
+      function startPolling() {
+        setInterval(() => {
+          fetch('/turnstile/api/epoch') // Update with your Worker URL
+            .then(res => res.text())
+            .then(data => console.log("Epoch time:", data))
+            .catch(err => console.error("Error fetching time:", err));
+        }, 1000);
+      }
+    </script>
+  </body>
+</html>
