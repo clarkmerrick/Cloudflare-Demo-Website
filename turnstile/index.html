@@ -85,12 +85,17 @@
   function startPolling() {
     setInterval(() => {
       fetch('https://demo.clarkmerrick.com/turnstile/api/epoch')
-        .then(res => res.text())
-        .then(res => { 
-          if(!res.ok) {
-          throw new Error(`HTTP error! Status: ${res.status}`);
-          }
-        })
+        .then(response => { // <-- IMPORTANT: 'response' here is the actual Response object
+                // 1. Check if the HTTP response itself was successful (status 200-299)
+                if (!response.ok) {
+                    // If not OK, throw an error. This will jump to the .catch() block.
+                    // Access status and statusText from the 'response' object.
+                    throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}`);
+                }
+                // 2. If OK, parse the response body as text.
+                // This returns a new Promise that resolves with the text content.
+                return response.text();
+            })
         .then(data => {
           console.log("Epoch time:", data);
           document.getElementById("epochTimeDisplay").textContent = "Epoch time: " + data;
