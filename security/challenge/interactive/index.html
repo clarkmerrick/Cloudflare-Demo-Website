@@ -60,16 +60,12 @@
         <div class="h-100 p-5 bg-3 rounded-3">
           <h2>Challenge Types</h2>
             <h3>Interactive Challenge</h3>
-              <p>Interactive Challenge Pages offer the highest security for your website or application because it requires a visitor to interact with the Interstitial Challenge Page, presenting the visitor with an Interactive Challenge to solve.</p>
+              <p>This type of challenge offers the highest security by requiring a visitor to solve an interactive challenge on a specific page.</p>
             <h3>Managed Challenge (Recommended)</h3>
-              <p>Managed Challenges are where Cloudflare dynamically chooses the appropriate type of Challenge served to the visitor based on the characteristics of a request from the signals indicated by their browser. This helps avoid CAPTCHAs ↗, which also reduces the lifetimes of human time spent solving CAPTCHAs across the Internet.</p>
-              <p>Most human visitors are automatically verified and the Challenge Page will display Successful. However, if Cloudflare detects non-human attributes from the visitor's browser, they may be required to interact with the Challenge to solve it.</p>
-              <p>Unless there are specific compatibility issues or other reasons to use other types of Challenges, Cloudflare recommends you to use Managed Challenges for your custom rules.</p>
+              <p>Cloudflare's recommended challenge dynamically selects the appropriate challenge type for a visitor based on their browser's signals. Most human visitors are automatically verified, but if Cloudflare detects non-human attributes, an interactive challenge may be presented.</p>
             <h3>JavaScript Challenge (non-interactive)</h3>
-              <p>With a JavaScript (JS) Challenge, Cloudflare makes the determination on whether or not the visitor is automated based on the limited information attained from their browser signals via an injected JavaScript. Then, it presents a Challenge Page that requires no interaction from a visitor except the JavaScript processed by their browser.</p>
-              <p>The visitor must wait until their browser finishes processing the JavaScript, which typically takes less than five seconds.</p>
-              <p>If the visitor passes the Challenge, the original request continues to the destination URL. If the Challenge fails or cannot be completed, the visitor is presented with another Interstitial Challenge Page.</p>
-            </div>
+              <p>A JavaScript (JS) Challenge determines if a visitor is automated based on their browser's signals. The visitor must wait for their browser to process the injected JavaScript, which typically takes less than five seconds. If the challenge passes, the original request is sent to the destination URL. If it fails, another challenge page is presented.</p>
+        </div>
       </div>
     </div>
     <div class="row align-items-md-stretch">
