@@ -53,7 +53,7 @@
 
               <!-- Turnstile widget -->
               <form id="turnstile-form">
-                <div class="cf-turnstile" data-sitekey="0x4AAAAAABmgy4C0TrcKs3-l"></div>
+                <div class="cf-turnstile" data-callback="turnstileCallback" data-sitekey="0x4AAAAAABmgy4C0TrcKs3-l"></div>
               </form>
 
               <p class="mt-3" id="statusMsg" style="color: #0f0;"></p>
@@ -85,7 +85,17 @@
   function startPolling() {
     setInterval(() => {
       fetch('https://demo.clarkmerrick.com/turnstile/api/epoch')
-        .then(res => res.text())
+        .then(response => { // <-- IMPORTANT: 'response' here is the actual Response object
+                // 1. Check if the HTTP response itself was successful (status 200-299)
+                if (!response.ok) {
+                    // If not OK, throw an error. This will jump to the .catch() block.
+                    // Access status and statusText from the 'response' object.
+                    throw new Error(`HTTP error! Status: ${response.status} ${response.statusText}`);
+                }
+                // 2. If OK, parse the response body as text.
+                // This returns a new Promise that resolves with the text content.
+                return response.text();
+            })
         .then(data => {
           console.log("Epoch time:", data);
           document.getElementById("epochTimeDisplay").textContent = "Epoch time: " + data;
