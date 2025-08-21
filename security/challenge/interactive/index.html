@@ -42,7 +42,7 @@
     <div class="p-5 mb-4 bg-1 rounded-3 text-white">
       <div class="container-fluid py-5">
         <div class="col-md-12 fs-4">
-        <h1 class="display-5 fw-bold">Security/Challenge/Interactive Challenge</h1>
+        <h1 class="display-5 fw-bold">Interactive Challenge</h1>
         </div>
       </div>
     </div>
@@ -50,26 +50,26 @@
     <div class="row align-items-md-stretch">
       <div class="col-lg-6 mb-4">
         <div class="h-100 p-5 text-white bg-2 rounded-3">
-          <h2>Security</h2>
-          <p>Web Application Firewall<br><a class="link-light-opacity" href="/waf">View WAF</a></p>
-          <p>Bot Management<br><a class="link-light-opacity" href="/bots">View Bot Management</a></p>
-          <p>Edge Certificates<br><a class="link-light-opacity" href="/edge-certificates">View Edge Certificates</a></p>
-          <p>DDoS<br><a class="link-light-opacity" href="/ddos">View DDoS</a></p>
-          <p>Challenges<br>
-            <a class="link-light-opacity" href="/challenge/managed">Managed Challenge</a><br>
-            <a class="link-light-opacity" href="/challenge/js">JS Challenge</a><br>
-            <a class="link-light-opacity" href="/challenge/interactive">Interactive Challenge</a>
-          
-          
-          </p>
+          <h2>You solved the challenge!</h2>
+            <p>Keep in mind, the challenge passage time has been set to 5 minutes which means that you will not be served another challenge for the next 5 minutes.</p>
+          <h2>What is Challenge Passage?</h2>
+            <p>Challenge Passage is a configurable setting that specifies the length of time that a visitor, who has successfully completed a Challenge (Javascript Challenge, Interactive Challenge or Managed Challenge), can access your website. When the configured timeout expires, the visitor will be issued a new challenge. Challenge Passage does not apply to Rate Limiting.</p>
         </div>
       </div>
       <div class="col-lg-6 text-white mb-4">
         <div class="h-100 p-5 bg-3 rounded-3">
-          <h2>Stream</h2>
-          <p>Livestream<br><a class="link-light-opacity" href="/live">View Live</a></p>
-          <p>Video on Demand<br><a class="link-light-opacity" href="/vod">View VOD</a></p>
-        </div>
+          <h2>Challenge Types</h2>
+            <h3>Interactive Challenge</h3>
+              <p>Interactive Challenge Pages offer the highest security for your website or application because it requires a visitor to interact with the Interstitial Challenge Page, presenting the visitor with an Interactive Challenge to solve.</p>
+            <h3>Managed Challenge (Recommended)</h3>
+              <p>Managed Challenges are where Cloudflare dynamically chooses the appropriate type of Challenge served to the visitor based on the characteristics of a request from the signals indicated by their browser. This helps avoid CAPTCHAs ↗, which also reduces the lifetimes of human time spent solving CAPTCHAs across the Internet.</p>
+              <p>Most human visitors are automatically verified and the Challenge Page will display Successful. However, if Cloudflare detects non-human attributes from the visitor's browser, they may be required to interact with the Challenge to solve it.</p>
+              <p>Unless there are specific compatibility issues or other reasons to use other types of Challenges, Cloudflare recommends you to use Managed Challenges for your custom rules.</p>
+            <h3>JavaScript Challenge (non-interactive)</h3>
+              <p>With a JavaScript (JS) Challenge, Cloudflare makes the determination on whether or not the visitor is automated based on the limited information attained from their browser signals via an injected JavaScript. Then, it presents a Challenge Page that requires no interaction from a visitor except the JavaScript processed by their browser.</p>
+              <p>The visitor must wait until their browser finishes processing the JavaScript, which typically takes less than five seconds.</p>
+              <p>If the visitor passes the Challenge, the original request continues to the destination URL. If the Challenge fails or cannot be completed, the visitor is presented with another Interstitial Challenge Page.</p>
+            </div>
       </div>
     </div>
     <div class="row align-items-md-stretch">
