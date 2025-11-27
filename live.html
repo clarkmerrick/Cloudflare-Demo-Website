@@ -1,105 +1,116 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <html lang="en">
+      <head>
+        <meta charset="utf-8">
+        <meta name="viewport" content="width=device-width, initial-scale=1">
 
-    <!-- Primary Meta Tags -->
-<title>Live Streaming on Clark's Demo Website</title>
-<meta name="title" content="Live Streaming on Clark's Demo Website" />
-<meta name="description" content="Come check out what's streaming! Could be Minecraft!" />
+        <!-- Primary Meta Tags -->
+        <title>Live Streaming on Clark's Demo Website</title>
+        <meta name="title" content="Live Streaming on Clark's Demo Website" />
+        <meta name="description" content="Come check out what's streaming! Could be Minecraft!" />
 
-<!-- Open Graph / Facebook -->
-<meta property="og:type" content="website" />
-<meta property="og:url" content="https://demo.clarkmerrick.com/live" />
-<meta property="og:title" content="Live Streaming on Clark's Demo Website" />
-<meta property="og:description" content="Come check out what's streaming! Could be Minecraft!" />
-<meta property="og:image" content="https://metatags.io/images/meta-tags.png" />
+        <!-- Open Graph / Facebook -->
+        <meta property="og:type" content="website" />
+        <meta property="og:url" content="https://demo.clarkmerrick.com/live" />
+        <meta property="og:title" content="Live Streaming on Clark's Demo Website" />
+        <meta property="og:description" content="Come check out what's streaming! Could be Minecraft!" />
+        <meta property="og:image" content="https://metatags.io/images/meta-tags.png" />
 
-<!-- X (Twitter) -->
-<meta property="twitter:card" content="summary_large_image" />
-<meta property="twitter:url" content="https://demo.clarkmerrick.com/live" />
-<meta property="twitter:title" content="Live Streaming on Clark's Demo Website" />
-<meta property="twitter:description" content="Come check out what's streaming! Could be Minecraft!" />
-<meta property="twitter:image" content="https://metatags.io/images/meta-tags.png" />
+        <!-- X (Twitter) -->
+        <meta property="twitter:card" content="summary_large_image" />
+        <meta property="twitter:url" content="https://demo.clarkmerrick.com/live" />
+        <meta property="twitter:title" content="Live Streaming on Clark's Demo Website" />
+        <meta property="twitter:description" content="Come check out what's streaming! Could be Minecraft!" />
+        <meta property="twitter:image" content="https://metatags.io/images/meta-tags.png" />
 
-<!-- Meta Tags Generated with https://metatags.io -->
+        <link rel="canonical" href="https://getbootstrap.com/docs/5.1/examples/jumbotron/">
 
-    <link rel="canonical" href="https://getbootstrap.com/docs/5.1/examples/jumbotron/">
+        <!-- Bootstrap core CSS -->
+        <link href="assets/dist/css/bootstrap.min.css" rel="stylesheet">
 
-    
+        <style>
+          .bd-placeholder-img {
+            font-size: 1.125rem;
+            text-anchor: middle;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            user-select: none;
+          }
+          @media (min-width: 768px) {
+            .bd-placeholder-img-lg { font-size: 3.5rem; }
+          }
+          /* simple chat container height to match video on larger screens */
+          .video-wrap { position: relative; padding-top: 56.25%; }
+          .video-wrap iframe { border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%; }
+          .chat-wrap { height: 560px; }
+          @media (min-width: 992px) {
+            .chat-wrap { height: calc(56.25vw * 0.5625); } /* approximate to keep similar visual height */
+          }
+          .chat-wrap iframe { border: 1px solid rgba(0,0,0,0.08); width: 100%; height: 100%; }
+        </style>
+      </head>
+      <body>
+    <main>
+      <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom">
+          <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+            <span class="fs-4">clarkdemo.com</span>
+          </a>
+        </header>
 
-    <!-- Bootstrap core CSS -->
-<link href="assets/dist/css/bootstrap.min.css" rel="stylesheet">
-
-    <style>
-      .bd-placeholder-img {
-        font-size: 1.125rem;
-        text-anchor: middle;
-        -webkit-user-select: none;
-        -moz-user-select: none;
-        user-select: none;
-      }
-
-      @media (min-width: 768px) {
-        .bd-placeholder-img-lg {
-          font-size: 3.5rem;
-        }
-      }
-    </style>
-
-    
-  </head>
-  <body>
-    
-<main>
-  <div class="container py-4">
-    <header class="pb-3 mb-4 border-bottom">
-      <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
-        <span class="fs-4">clarkdemo.com</span>
-      </a>
-    </header>
-
-    <div class="p-5 mb-4 bg-1 rounded-3 text-white">
-      <div class="container-fluid py-5">
-        <div class="col-md-12 fs-4">
-        <h1 class="display-5 fw-bold">Live Video</h1>
-        </div>
-      </div>
-    </div>
-
-    <div class="row align-items-md-stretch">
-      <div class="col-lg-12 mb-4">
-        <div class="h-100 p-5 text-white bg-2 rounded-3">
-          <h2>Wait for the stream to start.</h2>
-          <p>View this video in the native Cloudflare player.</p>
-          <div style="position: relative; padding-top: 56.25%;">
-            <iframe
-              src="https://customer-t7trp5ovsv078o7n.cloudflarestream.com/0a76228c8dbf50c8f0228caceddc2aa6/iframe"
-              style="border: none; position: absolute; top: 0; left: 0; height: 100%; width: 100%;"
-              allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture;"
-              allowfullscreen="true"
-            ></iframe>
+        <div class="p-5 mb-4 bg-1 rounded-3 text-white">
+          <div class="container-fluid py-5">
+            <div class="col-md-12 fs-4">
+              <h1 class="display-5 fw-bold">Live Video</h1>
+            </div>
           </div>
-          <!--<p><a class="btn btn-1 btn-lg" type="button" href="https://clarkdemo.com/waf?blockme=npvenJAo9gMlnd5yD37xQ9P2qp3934">Initiate L7 DDoS</a></p>-->
         </div>
+
+        <div class="row align-items-md-stretch">
+          <!-- left: video (larger) -->
+          <div class="col-lg-8 mb-4">
+            <div class="h-100 p-5 text-white bg-2 rounded-3">
+              <h2>Wait for the stream to start.</h2>
+              <p>View this video in the native Cloudflare player.</p>
+              <div class="video-wrap" aria-hidden="false">
+                <iframe
+                  src="https://customer-t7trp5ovsv078o7n.cloudflarestream.com/0a76228c8dbf50c8f0228caceddc2aa6/iframe"
+                  title="Livestream video"
+                  allow="accelerometer; gyroscope; autoplay; encrypted-media; picture-in-picture"
+                  allowfullscreen
+                ></iframe>
+              </div>
+            </div>
+          </div>
+
+          <!-- right: live chat iframe -->
+          <div class="col-lg-4 mb-4">
+            <div class="h-100 p-4 bg-5 rounded-3">
+              <h3 class="fw-bold">Live Chat</h3>
+              <p class="small text-muted">Chat with viewers in real time.</p>
+              <div class="chat-wrap">
+                <iframe
+                  src="https://live-chat-worker.clarkmerrick.workers.dev"
+                  title="Live chat"
+                  sandbox="allow-forms allow-scripts allow-same-origin allow-popups"
+                  aria-label="Live chat for the livestream"
+                ></iframe>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="p-5 mb-4 bg-5 rounded-3">
+          <div class="container-fluid text-dark">
+            <h1 class="display-5 fw-bold">Feel free to poke around!</h1>
+            <p class="col-md-8 fs-4">My best point of contact is email at <a class="link-dark-opacity" href="mailto:cmerrick@cloudflare.com">cmerrick@cloudflare.com</a></p>
+          </div>
+        </div>
+
+        <footer class="pt-3 mt-4 text-muted border-top">
+          &copy; 2023 - clarkdemo.com
+        </footer>
       </div>
-    </div>
-
-    <div class="p-5 mb-4 bg-5 rounded-3">
-      <div class="container-fluid text-dark">
-        <h1 class="display-5 fw-bold">Feel free to poke around!</h1>
-        <p class="col-md-8 fs-4">My best point of contact is email at <a class="link-dark-opacity" href="mailto:cmerrick@cloudflare.com">cmerrick@cloudflare.com</a></p>
-      </div>
-  </div>
-
-    <footer class="pt-3 mt-4 text-muted border-top">
-      &copy; 2023 - clarkdemo.com
-    </footer>
-  </div>
-</main>
-
-
-    
-  </body>
-</html>
+    </main>
+      </body>
+    </html>
