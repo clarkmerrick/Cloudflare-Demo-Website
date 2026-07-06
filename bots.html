@@ -46,7 +46,7 @@
     <div class="p-5 mb-4 bg-1 rounded-3 text-white">
       <div class="container-fluid py-5">
         <div class="col-md-12 fs-4">
-        <h1 class="display-5 fw-bold">Web Application Firewall</h1>
+        <h1 class="display-5 fw-bold">Bots</h1>
         </div>
       </div>
     </div>
@@ -54,9 +54,8 @@
     <div class="row align-items-md-stretch">
       <div class="col-lg-12 mb-4">
         <div class="h-100 p-5 text-white bg-2 rounded-3">
-          <h2>L7 DDoS</h2>
-          <p>Clicking the button below will simulate a L7 DDoS.</p>
-          <p><a class="btn btn-1 btn-lg" type="button" href="https://demo.clarkmerrick.com/waf?blockme=npvenJAo9gMlnd5yD37xQ9P2qp3934">Initiate L7 DDoS</a></p>
+          <h2>Bot Management</h2>
+          <p>This page loads a script which generates a JSD!</p>
         </div>
       </div>
     </div>
@@ -74,6 +73,16 @@
   </div>
 </main>
 
+<script>
+  function jsdOnload() {
+    window.cloudflare.jsd.executeOnce({
+      callback: function (result) {
+        console.log('jsd outcome', result);
+      }
+    });
+  }
+</script>
+<script src="/cdn-cgi/challenge-platform/scripts/jsd/api.js?onload=jsdOnload" async></script>
 
     
   </body>
