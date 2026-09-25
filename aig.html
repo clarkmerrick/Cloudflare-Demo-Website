@@ -1,0 +1,316 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="How Clark's AI Gateway + OpenCode setup works: request flow, the config Worker and redirect rule, and the Cloudflare Access permission flow.">
+    <meta name="author" content="Mark Otto, Jacob Thornton, and Bootstrap contributors">
+    <meta name="generator" content="Hugo 0.88.1">
+    <title>AI Gateway Architecture | demo.clarkmerrick.com</title>
+
+    <link rel="canonical" href="https://getbootstrap.com/docs/5.1/examples/jumbotron/">
+
+    
+
+    <!-- Bootstrap core CSS -->
+<link href="/assets/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <style>
+      .bd-placeholder-img {
+        font-size: 1.125rem;
+        text-anchor: middle;
+        -webkit-user-select: none;
+        -moz-user-select: none;
+        user-select: none;
+      }
+
+      @media (min-width: 768px) {
+        .bd-placeholder-img-lg {
+          font-size: 3.5rem;
+        }
+      }
+
+      /* Readable HTTP / code blocks on top of the coloured theme cards. */
+      pre.http {
+        background: #0b0b17;
+        color: #e7e7f0;
+        border-radius: .5rem;
+        padding: 1rem 1.25rem;
+        overflow-x: auto;
+        font-size: .85rem;
+        line-height: 1.45;
+        margin-bottom: 0;
+      }
+      pre.http .c { color: #7ee787; }      /* comment / annotation */
+      pre.http .m { color: #79c0ff; }      /* method / status */
+      pre.http .h { color: #ffa657; }      /* header name */
+      .flow-step { counter-increment: step; }
+      .flow-num {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        width: 1.9rem; height: 1.9rem;
+        border-radius: 50%;
+        background: rgba(255,255,255,.9);
+        color: #111;
+        font-weight: 700;
+        flex: 0 0 auto;
+      }
+    </style>
+
+    
+  </head>
+  <body>
+    
+<main>
+  <div class="container py-4">
+    <header class="pb-3 mb-4 border-bottom">
+      <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+        <span class="fs-4">demo.clarkmerrick.com</span>
+      </a>
+    </header>
+
+    <div class="p-5 mb-4 bg-1 rounded-3 text-white">
+      <div class="container-fluid py-5">
+        <div class="col-md-12 fs-4">
+        <h1 class="display-5 fw-bold">AI Gateway + OpenCode Architecture</h1>
+        <p class="col-md-10">How my <a class="link-light-opacity" href="https://developers.cloudflare.com/ai-gateway/" target="_blank" rel="noopener">Cloudflare AI Gateway</a>
+        is wired up so a coding agent (<a class="link-light-opacity" href="https://opencode.ai" target="_blank" rel="noopener">OpenCode</a>)
+        can authenticate with <strong>Cloudflare Access</strong> and pull its config remotely &mdash; no API keys on the laptop.</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Components -->
+    <div class="row align-items-md-stretch">
+      <div class="col-lg-12 mb-4">
+        <div class="h-100 p-5 text-white bg-2 rounded-3">
+          <h2>The moving parts</h2>
+          <p>Four pieces work together. Everything is Cloudflare-native, and only the AI Gateway hostname is protected by Access.</p>
+          <div class="table-responsive">
+          <table class="table table-borderless text-white align-middle">
+            <thead>
+              <tr><th style="width:28%">Component</th><th>What it does</th></tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td><code>aig.demo.clarkmerrick.com</code></td>
+                <td>AI Gateway <strong>custom domain</strong> (CNAME &rarr; <code>gateway.ai.cloudflare.com</code>), routing to the <code>opencode</code> gateway. Protected by Cloudflare Access. Unified Billing supplies provider credentials, so no keys leave Cloudflare.</td>
+              </tr>
+              <tr>
+                <td><code>opencode-config.demo.clarkmerrick.com</code></td>
+                <td>A <strong>Cloudflare Worker</strong> that serves two small, credential-free JSON files: <code>/opencode</code> (discovery) and <code>/opencode.json</code> (provider config). <em>Not</em> behind Access.</td>
+              </tr>
+              <tr>
+                <td>Single Redirect rule</td>
+                <td>A dynamic redirect on the zone that forwards <code>aig.demo.clarkmerrick.com/.well-known/opencode</code> to the Worker's discovery file. Runs at the edge <em>before</em> Access.</td>
+              </tr>
+              <tr>
+                <td>Cloudflare Access app</td>
+                <td>A self-hosted Access application guarding <code>aig.demo.clarkmerrick.com</code>. Users authenticate via SSO; <code>cloudflared</code> mints a short-lived JWT the agent sends on every request.</td>
+              </tr>
+            </tbody>
+          </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Topology -->
+    <div class="row align-items-md-stretch">
+      <div class="col-lg-12 mb-4">
+        <div class="h-100 p-5 text-white bg-3 rounded-3">
+          <h2>Topology at a glance</h2>
+          <p>The laptop only ever talks to Cloudflare. Discovery/config traffic hits the Worker; model traffic hits the Access-protected gateway.</p>
+<pre class="http"><span class="c">                       (A) discovery + auth            (B) model inference</span>
+
+  ┌─────────────────────────┐
+  │  Developer laptop        │
+  │   • opencode CLI         │
+  │   • cloudflared          │
+  └───────────┬─────────────┘
+              │
+   (A) GET /.well-known/opencode         (B) POST /compat/chat/completions
+       Host: aig.demo.clarkmerrick.com       Host: aig.demo.clarkmerrick.com
+              │                                   cf-access-token: &lt;JWT&gt;
+              ▼                                        │
+  ┌───────────────────────────────────┐               │
+  │  Cloudflare edge  (demo zone)      │               │
+  │   1. Single Redirect  ──302──┐     │               │
+  │   2. Cloudflare Access        │    │◄──────────────┘
+  └───────────────┬───────────────┘    │   validate JWT (aud + policy)
+                  │ 302 to Worker       │        │ allow
+                  ▼                     │        ▼
+  ┌───────────────────────────────┐    │   ┌──────────────────────────────┐
+  │ Worker: opencode-config...     │    │   │ AI Gateway  "opencode"        │
+  │  /opencode      (discovery)    │    └──►│  logging • caching • billing  │
+  │  /opencode.json (provider cfg) │        │        │                      │
+  └───────────────────────────────┘        │        ▼                      │
+                                            │  Workers AI  @cf/* models     │
+                                            └──────────────────────────────┘</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase A -->
+    <div class="row align-items-md-stretch">
+      <div class="col-lg-12 mb-4">
+        <div class="h-100 p-5 text-white bg-2 rounded-3">
+          <h2>Request flow &mdash; Phase A: discovery &amp; login</h2>
+          <p>This happens once when a user runs <code>opencode auth login https://aig.demo.clarkmerrick.com</code> (and again when the Access session expires).</p>
+
+          <div class="d-flex mb-3 flow-step">
+            <span class="flow-num me-3">1</span>
+            <div>
+              <strong>OpenCode asks the gateway host for discovery.</strong> It requests the well-known path on the AI Gateway domain.
+            </div>
+          </div>
+<pre class="http"><span class="m">GET</span> /.well-known/opencode HTTP/2
+Host: aig.demo.clarkmerrick.com</pre>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">2</span>
+            <div>
+              <strong>The Single Redirect answers first.</strong> Dynamic redirects run at the edge <em>before</em> Access, so this path is never challenged &mdash; it just 302s to the Worker.
+            </div>
+          </div>
+<pre class="http"><span class="m">HTTP/2 302</span>
+<span class="h">location</span>: https://opencode-config.demo.clarkmerrick.com/opencode</pre>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">3</span>
+            <div>
+              <strong>The Worker returns the discovery file.</strong> It names the auth command to run and where to fetch the real provider config. No secrets here.
+            </div>
+          </div>
+<pre class="http"><span class="m">GET</span> /opencode HTTP/2
+Host: opencode-config.demo.clarkmerrick.com
+
+<span class="m">HTTP/2 200</span>
+<span class="h">content-type</span>: application/json
+{
+  "auth": {
+    "command": ["cloudflared","access","login","--no-verbose",
+                "-app=https://aig.demo.clarkmerrick.com/"],
+    "env": "TOKEN"
+  },
+  "remote_config": { "url": "https://opencode-config.demo.clarkmerrick.com/opencode.json" }
+}</pre>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">4</span>
+            <div>
+              <strong>cloudflared runs the Access login.</strong> A browser SSO flow completes against the Access app, and Cloudflare issues a short-lived <strong>JWT</strong> scoped to that app. OpenCode captures it as <code>{env:TOKEN}</code> and stores it locally.
+            </div>
+          </div>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">5</span>
+            <div>
+              <strong>OpenCode fetches the remote provider config.</strong> This tells it the base URL and headers to use &mdash; note the credential is a header placeholder, not a baked-in key.
+            </div>
+          </div>
+<pre class="http"><span class="m">GET</span> /opencode.json HTTP/2
+Host: opencode-config.demo.clarkmerrick.com
+
+<span class="m">HTTP/2 200</span>
+{
+  "enabled_providers": ["cf-workers-ai"],
+  "provider": {
+    "cf-workers-ai": {
+      "npm": "@ai-sdk/openai-compatible",
+      "options": {
+        "baseURL": "https://aig.demo.clarkmerrick.com/compat",
+        "apiKey": "",
+        "headers": {
+          "cf-access-token": "{env:TOKEN}",
+          "X-Requested-With": "XMLHttpRequest"
+        }
+      },
+      "models": { "workers-ai/@cf/...": { } }
+    }
+  }
+}</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Phase B -->
+    <div class="row align-items-md-stretch">
+      <div class="col-lg-12 mb-4">
+        <div class="h-100 p-5 text-white bg-3 rounded-3">
+          <h2>Request flow &mdash; Phase B: model inference</h2>
+          <p>Every prompt the agent sends now flows through the Access-protected gateway.</p>
+
+          <div class="d-flex mb-3 flow-step">
+            <span class="flow-num me-3">1</span>
+            <div><strong>OpenCode calls the gateway's OpenAI-compatible endpoint</strong>, attaching the Access JWT it minted in Phase A.</div>
+          </div>
+<pre class="http"><span class="m">POST</span> /compat/chat/completions HTTP/2
+Host: aig.demo.clarkmerrick.com
+<span class="h">cf-access-token</span>: &lt;short-lived Access JWT&gt;
+<span class="h">X-Requested-With</span>: XMLHttpRequest
+<span class="h">content-type</span>: application/json
+
+{ "model": "workers-ai/@cf/zai-org/glm-5.3",
+  "messages": [ { "role": "user", "content": "refactor this function" } ] }</pre>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">2</span>
+            <div><strong>Cloudflare Access validates the JWT</strong> at the edge &mdash; signature, audience (<code>aud</code>) tag, and the app's policies. No token (or an invalid one) is rejected before the gateway is ever touched:</div>
+          </div>
+<pre class="http"><span class="m">HTTP/2 401</span>
+<span class="h">www-authenticate</span>: Bearer realm="OAuth", error="invalid_token",
+   error_description="Missing or invalid access token"</pre>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">3</span>
+            <div><strong>A valid token is proxied to the <code>opencode</code> AI Gateway.</strong> The gateway applies logging, caching, rate limiting and Unified Billing, then routes to the model provider.</div>
+          </div>
+
+          <div class="d-flex my-3 flow-step">
+            <span class="flow-num me-3">4</span>
+            <div><strong>Workers AI runs the model</strong> (e.g. <code>@cf/*</code>) and the gateway returns a standard OpenAI-shaped response back to the laptop.</div>
+          </div>
+<pre class="http"><span class="m">HTTP/2 200</span>
+<span class="h">content-type</span>: application/json
+
+{ "choices": [ { "message": { "role": "assistant", "content": "..." } } ],
+  "usage": { "prompt_tokens": 128, "completion_tokens": 512 } }</pre>
+        </div>
+      </div>
+    </div>
+
+    <!-- Access & permissions -->
+    <div class="row align-items-md-stretch">
+      <div class="col-lg-12 mb-4">
+        <div class="h-100 p-5 text-white bg-2 rounded-3">
+          <h2>Access &amp; permissions flow</h2>
+          <ul class="fs-6">
+            <li><strong>Self-hosted Access application</strong> is bound to the hostname <code>aig.demo.clarkmerrick.com</code>. It has a unique audience (<code>aud</code>) tag that every issued JWT is stamped with.</li>
+            <li><strong>Identity + policies decide who gets in.</strong> The login flow authenticates the user against the configured identity provider (SSO), then Access evaluates the app's policies (e.g. allowed email domains or specific users) before issuing a token.</li>
+            <li><strong>The token is short-lived.</strong> <code>cloudflared</code> caches it locally; when the session expires, re-running <code>opencode auth login</code> transparently mints a fresh one.</li>
+            <li><strong>The gateway trusts Access, not the client.</strong> Because Access terminates in front of the gateway, the model endpoint only ever sees already-authenticated requests.</li>
+            <li><strong>Discovery stays public on purpose.</strong> The Single Redirect fires in the dynamic-redirect phase, which is <em>ahead</em> of Access in the request pipeline &mdash; so <code>/.well-known/opencode</code> resolves without a login prompt, while everything else on the host stays locked down. The files it exposes contain configuration only, never credentials.</li>
+          </ul>
+        </div>
+      </div>
+    </div>
+
+    <div class="p-5 mb-4 mt-4 bg-5 rounded-3">
+      <div class="container-fluid text-dark">
+        <h1 class="display-5 fw-bold">Want the walkthrough?</h1>
+        <p class="col-md-8 fs-4">Happy to demo this live. Best point of contact is email at <a class="link-dark-opacity" href="mailto:cmerrick@cloudflare.com">cmerrick@cloudflare.com</a></p>
+      </div>
+  </div>
+
+    <footer class="pt-3 mt-4 text-muted border-top">
+      &copy; 2026 - demo.clarkmerrick.com
+    </footer>
+  </div>
+</main>
+
+
+    
+  </body>
+</html>
