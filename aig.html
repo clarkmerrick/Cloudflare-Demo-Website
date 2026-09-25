@@ -44,6 +44,19 @@
       pre.http .c { color: #7ee787; }      /* comment / annotation */
       pre.http .m { color: #79c0ff; }      /* method / status */
       pre.http .h { color: #ffa657; }      /* header name */
+      /* Inline code: black text on a white chip (overrides Bootstrap's pink). */
+      code {
+        color: #111;
+        background: #fff;
+        padding: .1rem .35rem;
+        border-radius: .25rem;
+      }
+      /* Keep code inside the dark HTTP blocks transparent, not chipped. */
+      pre.http code {
+        color: inherit;
+        background: none;
+        padding: 0;
+      }
       .flow-step { counter-increment: step; }
       .flow-num {
         display: inline-flex;
