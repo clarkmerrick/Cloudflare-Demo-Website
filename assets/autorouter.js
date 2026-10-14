@@ -7,8 +7,11 @@
   const newChat = document.getElementById('new-chat');
   const controls = [prompt, document.getElementById('send'), newChat, ...document.querySelectorAll('.example-prompt')];
   const welcome = transcript.firstElementChild.cloneNode(true);
+  const sessionLabel = document.getElementById('chat-session');
+  let sessionId = crypto.randomUUID();
   let history = [];
   let busy = false;
+  sessionLabel.textContent = `Anonymous session: ${sessionId}`;
 
   function addMessage(role, content, details) {
     const message = document.createElement('div');
@@ -34,6 +37,7 @@
         fallback_unsupported_input: 'Fallback: input could not be classified',
       };
       info.textContent = `Model: ${details.model || 'Not reported'}\nRouting: ${reasons[details.routingReason] || details.routingReason || 'Not reported'}`;
+      if (details.sessionId) info.textContent += `\nSession ID: ${details.sessionId}`;
       if (details.logId) info.textContent += `\nRequest ID: ${details.logId}`;
       if (details.decisionId) info.textContent += `\nRouting decision ID: ${details.decisionId}`;
       info.style.whiteSpace = 'pre-wrap';
@@ -57,6 +61,8 @@
   });
 
   newChat.addEventListener('click', () => {
+    sessionId = crypto.randomUUID();
+    sessionLabel.textContent = `Anonymous session: ${sessionId}`;
     history = [];
     transcript.replaceChildren(welcome.cloneNode(true));
     prompt.value = '';
@@ -79,7 +85,7 @@
     error.hidden = true;
     const messages = [...history, { role: 'user', content }];
     while (messages.length > 20 || messages.reduce((total, message) => total + message.content.length, 0) > 12000 ||
-      new TextEncoder().encode(JSON.stringify({ messages })).byteLength > 16000) {
+      new TextEncoder().encode(JSON.stringify({ messages, sessionId })).byteLength > 16000) {
       messages.splice(0, 2);
     }
     addMessage('user', content);
@@ -89,7 +95,7 @@
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages }),
+        body: JSON.stringify({ messages, sessionId }),
         signal: AbortSignal.timeout(70000),
       });
       const result = await response.json();

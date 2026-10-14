@@ -42,7 +42,9 @@ async function readBody(request) {
 }
 
 function validMessages(body) {
-  if (!body || Object.keys(body).some(key => key !== 'messages') || !Array.isArray(body.messages)) return false;
+  if (!body || Object.keys(body).some(key => !['messages', 'sessionId'].includes(key)) || !Array.isArray(body.messages)) return false;
+  if (body.sessionId !== undefined && (typeof body.sessionId !== 'string' ||
+    !/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.sessionId))) return false;
   const { messages } = body;
   return messages.length > 0 && messages.length <= 20 &&
     messages.at(-1)?.role === 'user' &&
@@ -69,7 +71,8 @@ export default {
     } catch {
       return json({ error: 'Send a valid JSON request.' }, 400);
     }
-    if (!validMessages(body)) return json({ error: 'Use messages of up to 2,000 characters and start a new chat if the conversation gets too long.' }, 400);
+    if (!validMessages(body)) return json({ error: 'Send valid messages and a session ID. Use messages of up to 2,000 characters and start a new chat if the conversation gets too long.' }, 400);
+    const sessionId = body.sessionId || crypto.randomUUID();
 
     try {
       const response = await env.AI.run('cloudflare/auto', {
@@ -77,10 +80,11 @@ export default {
           { role: 'system', content: 'You are a helpful assistant in a public Cloudflare AI Gateway demo. Answer questions clearly and concisely. You have no live browsing or tools. Do not claim to access private accounts or perform actions. Keep answers under 1,500 characters.' },
           ...body.messages.map(({ role, content }) => ({ role, content })),
         ],
-        max_tokens: 1024,
+        max_tokens: 4096,
       }, {
-        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router' } },
+        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router', session_id: sessionId } },
         extraHeaders: {
+          'cf-aig-session-id': sessionId,
           'cf-aig-allowed-providers': 'workers-ai',
           'cf-aig-allowed-models': MODELS.join(','),
           'cf-aig-no-session-affinity': 'true',
@@ -99,6 +103,7 @@ export default {
       if (typeof reply !== 'string' || !reply.trim()) return json({ error: 'The model returned no answer. Please try a shorter question.' }, 502);
       return json({
         reply,
+        sessionId,
         model: response.headers.get('cf-aig-routed-model') || result.model || null,
         routingReason: response.headers.get('cf-aig-routing-reason'),
         decisionId: response.headers.get('cf-aig-routing-decision-id'),

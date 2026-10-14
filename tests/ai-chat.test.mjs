@@ -52,7 +52,7 @@ test('every inference uses Auto Router with a server-controlled Workers AI pool 
   assert.equal(model, 'cloudflare/auto');
   assert.equal(input.messages[0].role, 'system');
   assert.deepEqual(input.messages.slice(1), messages);
-  assert.equal(input.max_tokens, 1024);
+  assert.equal(input.max_tokens, 4096);
   assert.equal(options.gateway.id, 'demo-auto-router');
   assert.equal(options.gateway.collectLog, true);
   assert.equal(options.gateway.skipCache, true);
@@ -128,4 +128,36 @@ test('returns friendly errors without exposing upstream details or bypassing the
 test('preserves gateway rate-limit status', async () => {
   const { env } = setup({ upstreamStatus: 429 });
   assert.equal((await worker.fetch(request(), env)).status, 429);
+});
+
+test('records a shared anonymous session without pinning the model', async () => {
+  const sessionId = 'a361ca80-77e1-4cb6-9125-9436a10d245c';
+  const { calls, env } = setup();
+  for (let turn = 0; turn < 2; turn++) {
+    const response = await worker.fetch(request({ messages, sessionId }), env);
+    assert.equal(response.status, 200);
+    assert.equal((await response.json()).sessionId, sessionId);
+  }
+  for (const { args } of calls.filter(call => call.args)) {
+    assert.equal(args[0], 'cloudflare/auto');
+    assert.equal(args[2].gateway.metadata.session_id, sessionId);
+    assert.equal(args[2].extraHeaders['cf-aig-session-id'], sessionId);
+    assert.equal(args[2].extraHeaders['cf-aig-no-session-affinity'], 'true');
+    assert.equal(args[2].gateway.skipCache, true);
+  }
+});
+
+test('rejects malformed session identifiers before inference', async () => {
+  for (const sessionId of ['', null, 42, {}, 'a'.repeat(100), 'visitor@example.com', 'invalid\r\nheader']) {
+    const { calls, env } = setup();
+    assert.equal((await worker.fetch(request({ messages, sessionId }), env)).status, 400);
+    assert.equal(calls.filter(call => call.args).length, 0);
+  }
+});
+
+test('supports older clients with a generated per-request session ID', async () => {
+  const { calls, env } = setup();
+  const result = await (await worker.fetch(request(), env)).json();
+  assert.match(result.sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
+  assert.equal(calls[1].args[2].gateway.metadata.session_id, result.sessionId);
 });

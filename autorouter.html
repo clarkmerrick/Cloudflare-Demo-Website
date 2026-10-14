@@ -23,7 +23,7 @@
       .btn-demo:hover, .btn-demo:focus { background: #fff; color: #2f3e46; border-color: #fff; }
       @media (prefers-reduced-motion: reduce) { .chat-transcript { scroll-behavior: auto; } }
     </style>
-    <script src="/assets/autorouter.js" defer></script>
+    <script src="/assets/autorouter.js?v=2" defer></script>
   </head>
   <body>
     <main>
@@ -72,7 +72,8 @@
               <p id="chat-status" class="small mt-3 mb-0" role="status">Ready. Every request goes through Auto Router.</p>
               <div id="chat-error" class="alert alert-warning mt-3 mb-0" role="alert" hidden></div>
               <noscript><p class="alert alert-warning mt-3">Enable JavaScript to use this chat.</p></noscript>
-              <p class="small mt-3 mb-0">Chat history stays in this tab and is not saved in your browser. Only recent messages are sent for context. New chat clears local history, not the gateway logs.</p>
+              <p id="chat-session" class="small text-break mt-3 mb-0"></p>
+              <p class="small mt-2 mb-0">Chat history and a random session ID stay in this tab and are not saved in browser storage. The ID groups requests in the gateway logs; it does not identify you. New chat or reloading the page starts a new session, but does not erase gateway logs. Each message still gets a fresh routing decision, which may choose the same model.</p>
             </section>
           </div>
           <div class="col-lg-4 mb-4">
