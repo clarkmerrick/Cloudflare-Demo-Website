@@ -108,6 +108,34 @@
           <p class="mt-4 mb-0"><a class="link-light-opacity" href="https://developers.cloudflare.com/ai-gateway/features/auto-router/" target="_blank" rel="noopener">Read the Auto Router documentation</a> &middot; <a class="link-light-opacity" href="/aig">View the AI Gateway + OpenCode architecture</a></p>
         </section>
 
+        <section class="p-4 p-md-5 mb-4 bg-5 rounded-3 text-dark" aria-labelledby="benefits-heading">
+          <h2 id="benefits-heading">Why use Auto Router?</h2>
+          <p class="fs-5 mb-4">It's not just cost control. The goal is to balance <strong>expected answer quality and cost</strong> for each task, rather than always using the cheapest model or always paying for the most capable one.</p>
+          <div class="row">
+            <div class="col-md-6 mb-4">
+              <h3 class="h5">Match the model to the task</h3>
+              <p class="mb-0">A quick explanation and a difficult coding problem may need different capabilities. Auto Router estimates the task's difficulty and chooses a suitable model from the eligible pool. These are predictions, not fixed rules or guarantees of answer quality.</p>
+            </div>
+            <div class="col-md-6 mb-4">
+              <h3 class="h5">Avoid unnecessary model spend</h3>
+              <p class="mb-0">When a lower-cost model is expected to handle a task well, using a more expensive model may add little value. Routing considers that tradeoff. Separate gateway rate limits and spending budgets provide additional controls; Auto Router itself is not a hard budget cap.</p>
+            </div>
+            <div class="col-md-6 mb-4">
+              <h3 class="h5">Keep requests moving</h3>
+              <p class="mb-0">The gateway excludes unhealthy providers and can try another eligible model if the selected candidate cannot serve the request. This improves resilience, but requests can still fail if no suitable candidate is available.</p>
+            </div>
+            <div class="col-md-6 mb-4">
+              <h3 class="h5">Simplify your application</h3>
+              <p class="mb-0">Your app asks for <code>cloudflare/auto</code> instead of maintaining its own model-selection logic. You still control which models and providers are allowed. In this demo, every request stays within our three-model Workers AI pool.</p>
+            </div>
+          </div>
+          <div class="border-top border-secondary pt-4">
+            <h3 class="h4">How does Cloudflare decide?</h3>
+            <p>First, it filters for models that can accept the request and are available under your credentials, billing configuration, and spend limits. Then it analyzes the conversation's <strong>task type and difficulty</strong>, scores the eligible models by <strong>expected quality versus cost</strong>, and tries the top-ranked candidate. If that candidate cannot serve the request, it can try the next one.</p>
+            <p class="mb-0">The public documentation explains this process, but does not publish the exact scoring formula. It is not random selection, round robin, or a promise to pick the cheapest model. The routing reason shown beneath each reply helps explain what happened; evaluate the answers and gateway logs against your own application's needs.</p>
+          </div>
+        </section>
+
         <footer class="pt-3 mt-4 text-muted border-top">
           &copy; 2026 - demo.clarkmerrick.com
         </footer>
