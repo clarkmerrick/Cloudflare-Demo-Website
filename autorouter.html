@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="description" content="Try Cloudflare AI Gateway Auto Router: one chat, automatic model selection, and a simple walkthrough of every request.">
+    <title>AI Auto Router Chat | demo.clarkmerrick.com</title>
+    <link href="/assets/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+      .chat-transcript { height: 380px; overflow-y: auto; scroll-behavior: smooth; }
+      .chat-message { max-width: 90%; overflow-wrap: anywhere; }
+      .chat-content { white-space: pre-wrap; }
+      .chat-user { background: #cad2c5; margin-left: auto; }
+      .chat-assistant { background: #f1f4f2; }
+      .chat-details { font-size: .8rem; overflow-wrap: anywhere; }
+      .flow-number {
+        display: inline-flex; align-items: center; justify-content: center;
+        width: 2rem; height: 2rem; flex: 0 0 2rem;
+        border-radius: 50%; background: #cad2c5; color: #2f3e46; font-weight: 700;
+      }
+      code { color: #111; background: #fff; padding: .1rem .35rem; border-radius: .25rem; }
+      .btn-demo { background: #cad2c5; color: #2f3e46; border-color: #cad2c5; }
+      .btn-demo:hover, .btn-demo:focus { background: #fff; color: #2f3e46; border-color: #fff; }
+      @media (prefers-reduced-motion: reduce) { .chat-transcript { scroll-behavior: auto; } }
+    </style>
+    <script src="/assets/autorouter.js" defer></script>
+  </head>
+  <body>
+    <main>
+      <div class="container py-4">
+        <header class="pb-3 mb-4 border-bottom">
+          <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+            <span class="fs-4">demo.clarkmerrick.com</span>
+          </a>
+        </header>
+
+        <div class="p-4 p-md-5 mb-4 bg-1 rounded-3 text-white">
+          <div class="container-fluid py-3">
+            <h1 class="display-5 fw-bold">One chat. Automatic model selection.</h1>
+            <p class="fs-4 mb-2">Ask a question. Cloudflare AI Gateway Auto Router chooses a Workers AI model for the task.</p>
+            <p class="mb-0">Every message uses <code>cloudflare/auto</code>. No model picker, no API keys in your browser.</p>
+          </div>
+        </div>
+
+        <div class="row align-items-md-stretch">
+          <div class="col-lg-8 mb-4">
+            <section class="h-100 p-4 bg-2 rounded-3 text-white" aria-labelledby="chat-heading">
+              <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+                <h2 id="chat-heading" class="mb-0">Try the chat</h2>
+                <button id="new-chat" type="button" class="btn btn-sm btn-outline-light">New chat</button>
+              </div>
+              <p class="small">Demo prompts and answers are logged in Clark's Cloudflare account for demonstration. Please do not enter secrets or personal information. AI answers can be inaccurate.</p>
+              <div id="transcript" class="chat-transcript rounded-3 bg-white text-dark p-3 mb-3" role="log" aria-label="Chat conversation" aria-live="polite" aria-relevant="additions" tabindex="0">
+                <div class="chat-message chat-assistant p-3 rounded-3 mb-3">
+                  <div class="small fw-bold mb-1">Assistant</div>
+                  <div class="chat-content">Ask me anything, from a quick explanation to a coding question. Auto Router will choose the model for each request.</div>
+                </div>
+              </div>
+              <div class="d-flex flex-wrap gap-2 mb-3" aria-label="Example prompts">
+                <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Explain what a CDN does in two sentences.">Explain a CDN</button>
+                <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Write a short JavaScript function that removes duplicate values from an array, and explain it.">Write some code</button>
+                <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="A shop sells notebooks for $5 each. Buy 3 and get a 20% discount on the total. What do I pay, and how did you calculate it?">Solve a problem</button>
+              </div>
+              <form id="chat-form">
+                <label for="prompt" class="form-label">Your message</label>
+                <textarea id="prompt" class="form-control mb-2" rows="3" maxlength="2000" required placeholder="What would you like to know?" aria-describedby="prompt-help"></textarea>
+                <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
+                  <span id="prompt-help" class="small">Enter to send. Shift + Enter for a new line. Up to 2,000 characters.</span>
+                  <button id="send" type="submit" class="btn btn-demo px-4">Send message</button>
+                </div>
+              </form>
+              <p id="chat-status" class="small mt-3 mb-0" role="status">Ready. Every request goes through Auto Router.</p>
+              <div id="chat-error" class="alert alert-warning mt-3 mb-0" role="alert" hidden></div>
+              <noscript><p class="alert alert-warning mt-3">Enable JavaScript to use this chat.</p></noscript>
+              <p class="small mt-3 mb-0">Chat history stays in this tab and is not saved in your browser. Only recent messages are sent for context. New chat clears local history, not the gateway logs.</p>
+            </section>
+          </div>
+          <div class="col-lg-4 mb-4">
+            <aside class="h-100 p-4 bg-5 rounded-3 text-dark">
+              <h2>What's behind the chat?</h2>
+              <p>A small Cloudflare Worker securely connects this page to the <strong>demo-auto-router</strong> AI Gateway.</p>
+              <h3 class="h5 mt-4">The model pool</h3>
+              <ul class="ps-3">
+                <li class="mb-2">OpenAI GPT OSS 20B</li>
+                <li class="mb-2">Google Gemma 4 26B A4B</li>
+                <li class="mb-2">DeepSeek V4 Flash</li>
+              </ul>
+              <p class="small">All three are hosted on Workers AI. The server fixes this pool; visitors cannot switch to another provider. Eligible models depend on availability and account configuration.</p>
+              <h3 class="h5 mt-4">Watch the decision</h3>
+              <p>Each reply shows the selected model and routing reason, when returned by the gateway. Different questions may use the same model; selection is not random or round robin.</p>
+              <h3 class="h5 mt-4">For the live demo</h3>
+              <p>Open <strong>AI Gateway &rarr; demo-auto-router &rarr; Logs</strong> in the Cloudflare dashboard to inspect prompts, responses, tokens, latency, and cost.</p>
+              <p class="small mb-0">This public demo has request and spending limits. No browsing, uploads, or external tools are enabled.</p>
+            </aside>
+          </div>
+        </div>
+
+        <section class="p-4 p-md-5 mb-4 bg-3 rounded-3 text-white" aria-labelledby="flow-heading">
+          <h2 id="flow-heading" class="mb-4">How Auto Router works, step by step</h2>
+          <ol class="list-unstyled mb-0">
+            <li class="d-flex mb-3"><span class="flow-number me-3" aria-hidden="true">1</span><div><strong>You send a message.</strong> The page sends your prompt and recent conversation to a Cloudflare Worker on this website.</div></li>
+            <li class="d-flex mb-3"><span class="flow-number me-3" aria-hidden="true">2</span><div><strong>The Worker calls AI Gateway.</strong> It validates the request, applies a per-visitor rate limit, and asks for <code>cloudflare/auto</code> rather than a specific model. Credentials stay on Cloudflare.</div></li>
+            <li class="d-flex mb-3"><span class="flow-number me-3" aria-hidden="true">3</span><div><strong>The gateway checks the model pool.</strong> Only our allowed Workers AI models are considered. Unsupported inputs, unavailable providers, and account or spending restrictions can make a model ineligible.</div></li>
+            <li class="d-flex mb-3"><span class="flow-number me-3" aria-hidden="true">4</span><div><strong>Auto Router evaluates the task.</strong> It classifies the conversation's task and difficulty, then ranks eligible models by expected response quality and cost.</div></li>
+            <li class="d-flex mb-3"><span class="flow-number me-3" aria-hidden="true">5</span><div><strong>A model generates the answer.</strong> The gateway tries the top-ranked candidate and can fall back to another eligible model if it cannot serve the request. This demo requests a fresh routing decision for every message.</div></li>
+            <li class="d-flex"><span class="flow-number me-3" aria-hidden="true">6</span><div><strong>You see the reply; we see the request.</strong> The Worker returns the answer and routing details to the chat. AI Gateway records the prompt and response for inspection in the dashboard. Response caching is skipped in this demo.</div></li>
+          </ol>
+          <p class="mt-4 mb-0"><a class="link-light-opacity" href="https://developers.cloudflare.com/ai-gateway/features/auto-router/" target="_blank" rel="noopener">Read the Auto Router documentation</a> &middot; <a class="link-light-opacity" href="/aig">View the AI Gateway + OpenCode architecture</a></p>
+        </section>
+
+        <footer class="pt-3 mt-4 text-muted border-top">
+          &copy; 2026 - demo.clarkmerrick.com
+        </footer>
+      </div>
+    </main>
+  </body>
+</html>

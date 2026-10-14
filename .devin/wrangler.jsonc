@@ -1,0 +1,19 @@
+{
+  "name": "demo-auto-router-chat",
+  "main": "../workers/ai-chat.mjs",
+  "account_id": "c90488e647c2c6abe6544e5d35d59249",
+  "compatibility_date": "2026-10-01",
+  "workers_dev": false,
+  "preview_urls": false,
+  "ai": { "binding": "AI" },
+  "ratelimits": [
+    {
+      "name": "CHAT_LIMITER",
+      "namespace_id": "1014",
+      "simple": { "limit": 6, "period": 60 }
+    }
+  ],
+  "routes": [
+    { "pattern": "demo.clarkmerrick.com/api/ai-chat", "zone_id": "df194a551022ee768d93a48d2aff4647" }
+  ]
+}
