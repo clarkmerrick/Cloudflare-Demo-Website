@@ -21,7 +21,29 @@
     label.textContent = role === 'user' ? 'You' : 'Assistant';
     const text = document.createElement('div');
     text.className = 'chat-content';
-    text.textContent = content;
+    if (role === 'assistant' && window.marked?.parse && window.DOMPurify?.isSupported) {
+      text.classList.add('chat-markdown');
+      text.innerHTML = window.DOMPurify.sanitize(window.marked.parse(content, { async: false, gfm: true, breaks: true }), {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'del', 'blockquote', 'ul', 'ol', 'li', 'pre', 'code', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'a', 'hr', 'table', 'thead', 'tbody', 'tr', 'th', 'td'],
+        ALLOWED_ATTR: ['href', 'title', 'start'],
+        ALLOW_DATA_ATTR: false,
+        ALLOW_ARIA_ATTR: false,
+      });
+      text.querySelectorAll('a[href]').forEach(link => {
+        try {
+          if (!['http:', 'https:', 'mailto:'].includes(new URL(link.getAttribute('href'), window.location.href).protocol)) {
+            link.removeAttribute('href');
+          } else {
+            link.target = '_blank';
+            link.rel = 'noopener noreferrer';
+          }
+        } catch {
+          link.removeAttribute('href');
+        }
+      });
+    } else {
+      text.textContent = content;
+    }
     message.append(label, text);
     if (details) {
       const info = document.createElement('div');

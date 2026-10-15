@@ -1,7 +1,9 @@
 # Project conventions
 
-- This is a static Bootstrap website. Reuse the theme classes in `assets/dist/css/bootstrap.min.css` and plain browser JavaScript; no build step or npm dependencies are required.
+- This is a static Bootstrap website. Reuse the theme classes in `assets/dist/css/bootstrap.min.css` and plain browser JavaScript; no npm install or build step is required.
+- Assistant replies use pinned Marked and DOMPurify browser scripts with SHA-384 integrity checks. Sanitize parsed Markdown with the chat's HTML/attribute allowlist; keep user messages and metadata as plain text, exclude remote images, and retain a plain-text fallback if either library is unavailable.
 - Run `node --test tests/*.test.mjs`, `node --check assets/autorouter.js`, `node --check workers/ai-chat.mjs`, and `git diff --check` before publishing chat changes.
+- For Markdown UI checks, start `python3 -m http.server 8765 --bind 127.0.0.1`, then run `npm exec --yes --package=@playwright/test@1.56.1 -- node tests/chat-markdown.browser.mjs`. The browser test mocks inference requests, checks sanitization and mobile layout, and can target the live page by appending `https://demo.clarkmerrick.com/autorouter`. On non-macOS systems, use an installed Playwright Chromium or set `BROWSER_EXECUTABLE`.
 - Cloudflare Pages project `demo-clarkmerrick-com` builds `main` from GitHub repository ID `630177371`. Cloudflare displays its historical name `clarkdemo.com`; the current GitHub name is `clarkmerrick/Cloudflare-Demo-Website`.
 - The public site is `https://demo.clarkmerrick.com`. Its delegated zone ID is `df194a551022ee768d93a48d2aff4647`, not the parent `clarkmerrick.com` zone.
 - The Auto Router page is `/autorouter`. Its same-origin POST endpoint `/api/ai-chat` is a separate Worker route, not a Pages Function. Local static servers and the Pages hostname do not have this route.

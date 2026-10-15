@@ -10,6 +10,20 @@
       .chat-transcript { height: 380px; overflow-y: auto; scroll-behavior: smooth; }
       .chat-message { max-width: 90%; overflow-wrap: anywhere; }
       .chat-content { white-space: pre-wrap; }
+      .chat-markdown { white-space: normal; }
+      .chat-markdown > :first-child { margin-top: 0; }
+      .chat-markdown > :last-child { margin-bottom: 0; }
+      .chat-markdown p, .chat-markdown ul, .chat-markdown ol { margin-bottom: .75rem; }
+      .chat-markdown h1, .chat-markdown h2, .chat-markdown h3,
+      .chat-markdown h4, .chat-markdown h5, .chat-markdown h6 { font-size: 1.1rem; margin: 1rem 0 .5rem; }
+      .chat-markdown ul, .chat-markdown ol { padding-left: 1.5rem; }
+      .chat-markdown pre { background: #2f3e46; color: #f8f9fa; border-radius: .35rem; padding: .85rem; overflow-x: auto; }
+      .chat-markdown pre code { background: none; color: inherit; padding: 0; white-space: pre; overflow-wrap: normal; }
+      .chat-markdown :not(pre) > code { white-space: pre-wrap; overflow-wrap: anywhere; }
+      .chat-markdown blockquote { border-left: 3px solid #84a98c; padding-left: .85rem; color: #354f52; }
+      .chat-markdown table { display: block; max-width: 100%; overflow-x: auto; margin-bottom: .75rem; }
+      .chat-markdown th, .chat-markdown td { padding: .35rem .6rem; border: 1px solid #cad2c5; }
+      .chat-markdown a { color: #2f3e46; text-decoration: underline; }
       .chat-user { background: #cad2c5; margin-left: auto; }
       .chat-assistant { background: #f1f4f2; }
       .chat-details { font-size: .8rem; overflow-wrap: anywhere; }
@@ -23,7 +37,9 @@
       .btn-demo:hover, .btn-demo:focus { background: #fff; color: #2f3e46; border-color: #fff; }
       @media (prefers-reduced-motion: reduce) { .chat-transcript { scroll-behavior: auto; } }
     </style>
-    <script src="/assets/autorouter.js?v=2" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js" integrity="sha384-IvVdUXkhyoD0shbjhiiOnuiTbervTaB0VJcnEcg3shUAMVOOF6lKj4ozJrCwvz6s" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
+    <script src="/assets/autorouter.js?v=3" defer></script>
   </head>
   <body>
     <main>
