@@ -1,4 +1,4 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../workers/ai-chat.mjs';
 
@@ -6,6 +6,11 @@ const origin = 'https://demo.clarkmerrick.com';
 const hour = Math.floor(Date.now() / 3600000) * 3600000;
 const model = '@cf/deepseek-ai/deepseek-v4-flash-0731';
 const sessionId = 'a361ca80-77e1-4cb6-9125-9436a10d245c';
+
+test.beforeEach(() => {
+  for (const level of ['info', 'warn', 'error']) mock.method(console, level, () => {});
+});
+test.afterEach(() => mock.restoreAll());
 
 function setup(rows = [], { readFails = false, writeFails = false, aiFails = false } = {}) {
   const writes = [];
@@ -108,7 +113,8 @@ test('a metrics write failure cannot break a successful AI reply', async () => {
   try {
     assert.equal((await worker.fetch(chat(), env)).status, 200);
     assert.equal(errors.length, 1);
-    assert.ok(!errors[0].includes('private database detail'));
+    assert.equal(errors[0].event, 'chat.metrics_failed');
+    assert.ok(!JSON.stringify(errors[0]).includes('private database detail'));
   } finally {
     console.error = original;
   }

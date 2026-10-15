@@ -1,5 +1,6 @@
 (() => {
   const LIMITS = { messageChars: 200000, contextChars: 240000, requestBytes: 1000000 };
+  const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
   const form = document.getElementById('chat-form');
   const prompt = document.getElementById('prompt');
   const transcript = document.getElementById('transcript');
@@ -81,7 +82,8 @@
       };
       info.textContent = `Model: ${details.model || 'Not reported'}\nRouting: ${reasons[details.routingReason] || details.routingReason || 'Not reported'}`;
       if (details.sessionId) info.textContent += `\nSession ID: ${details.sessionId}`;
-      if (details.logId) info.textContent += `\nRequest ID: ${details.logId}`;
+      if (details.requestId) info.textContent += `\nRequest ID: ${details.requestId}`;
+      if (details.logId) info.textContent += `\nAI Gateway log ID: ${details.logId}`;
       if (details.decisionId) info.textContent += `\nRouting decision ID: ${details.decisionId}`;
       info.style.whiteSpace = 'pre-wrap';
       message.append(info);
@@ -142,17 +144,23 @@
     addMessage('user', content);
     setBusy(true);
     status.textContent = 'Auto Router is choosing a model and generating a reply...';
+    let referenceId = crypto.randomUUID();
+    let errorCode = '';
     try {
       const response = await fetch('/api/ai-chat', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+        headers: { 'Content-Type': 'application/json', 'X-Request-ID': referenceId },
         body: JSON.stringify({ messages, sessionId }),
-        signal: AbortSignal.timeout(70000),
+        signal: AbortSignal.timeout(130000),
       });
+      const headerId = response.headers.get('x-request-id');
+      if (UUID.test(headerId || '')) referenceId = headerId;
       const result = await response.json();
+      if (UUID.test(result.requestId || '')) referenceId = result.requestId;
+      if (typeof result.errorCode === 'string' && /^[a-z_]{1,64}$/.test(result.errorCode)) errorCode = result.errorCode;
       if (!response.ok) throw new Error(result.error || 'The demo is temporarily unavailable. Please try again.');
       if (typeof result.reply !== 'string' || !result.reply.trim()) throw new Error('The model returned no answer. Please try again.');
-      addMessage('assistant', result.reply, result);
+      addMessage('assistant', result.reply, { ...result, requestId: referenceId });
       history = [...messages, { role: 'assistant', content: result.reply.slice(0, LIMITS.messageChars) }];
       prompt.value = '';
       updatePromptState();
@@ -160,11 +168,12 @@
         ? 'Reply received through AI Gateway Auto Router. Older turns were omitted to fit the context limit; your latest message was sent in full.'
         : 'Reply received through AI Gateway Auto Router. Try another question.';
     } catch (cause) {
-      error.textContent = cause.name === 'TimeoutError'
-        ? 'The request took too long. Please try again.'
+      const message = cause.name === 'TimeoutError'
+        ? 'The connection timed out before a reply arrived. The request may still be running; use the reference ID to investigate before retrying.'
         : cause instanceof SyntaxError || cause instanceof TypeError
           ? 'Could not reach the chat service. Please try again on demo.clarkmerrick.com.'
           : cause.message;
+      error.textContent = `${message}${errorCode ? ` Error code: ${errorCode}.` : ''} Reference ID: ${referenceId}`;
       error.hidden = false;
       status.textContent = 'No reply received. Your message is still in the box so you can retry.';
     } finally {

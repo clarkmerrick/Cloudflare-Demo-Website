@@ -1,9 +1,14 @@
-import test from 'node:test';
+import test, { mock } from 'node:test';
 import assert from 'node:assert/strict';
 import worker from '../workers/ai-chat.mjs';
 
 const origin = 'https://demo.clarkmerrick.com';
 const messages = [{ role: 'user', content: 'What is Cloudflare?' }];
+
+test.beforeEach(() => {
+  for (const level of ['info', 'warn', 'error']) mock.method(console, level, () => {});
+});
+test.afterEach(() => mock.restoreAll());
 
 function setup({ allowed = true, upstreamStatus = 200, reply = 'Hello!', throws = false } = {}) {
   const calls = [];

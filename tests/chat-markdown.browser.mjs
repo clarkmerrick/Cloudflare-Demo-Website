@@ -47,7 +47,10 @@ async function mockChat(page) {
   await page.route('**/api/ai-chat', async route => {
     const body = route.request().postDataJSON();
     requests.push(body);
+    const requestId = route.request().headers()['x-request-id'];
+    assert.match(requestId, /^[0-9a-f-]{36}$/);
     await route.fulfill({ json: {
+      requestId,
       reply: markdown,
       sessionId: body.sessionId,
       model: '@cf/openai/gpt-oss-20b',
@@ -136,6 +139,25 @@ try {
   await documents.setViewportSize({ width: 390, height: 844 });
   assert.equal(await documents.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
+  for (const networkFailure of [false, true]) {
+    const failure = await browser.newPage();
+    let referenceId;
+    await failure.route('**/api/ai-chat', async route => {
+      referenceId = route.request().headers()['x-request-id'];
+      if (networkFailure) await route.abort('failed');
+      else await route.fulfill({ status: 504, headers: { 'x-request-id': referenceId }, json: { error: 'The model timed out.', errorCode: 'inference_timeout', requestId: referenceId } });
+    });
+    await failure.goto(url, { waitUntil: 'networkidle' });
+    await failure.locator('#prompt').fill('Keep this prompt for retry');
+    await failure.locator('#send').click();
+    await failure.locator('#chat-error').waitFor({ state: 'visible' });
+    const message = await failure.locator('#chat-error').textContent();
+    assert.ok(message.includes(`Reference ID: ${referenceId}`));
+    if (!networkFailure) assert.match(message, /inference_timeout/);
+    assert.equal(await failure.locator('#prompt').inputValue(), 'Keep this prompt for retry');
+    assert.equal(await failure.locator('#send').isEnabled(), true);
+  }
+
   for (const library of ['marked', 'dompurify']) {
     const fallback = await browser.newPage();
     await fallback.route(new RegExp(`cdn\\.jsdelivr\\.net/npm/${library}@`), route => route.abort());
@@ -145,7 +167,7 @@ try {
     assert.equal(await fallback.locator('.chat-assistant .chat-content').last().textContent(), markdown);
     assert.equal(await fallback.locator('#transcript img, #transcript script').count(), 0);
   }
-  console.log('PASS: Markdown formatting, XSS protection, session continuity, complete long documents, oversized-input validation, explicit context trimming, mobile layout, and offline-library fallback.');
+  console.log('PASS: Markdown/XSS safety, session continuity, long documents, explicit validation/context trimming, server/network error reference IDs, mobile layout, and offline-library fallback.');
 } finally {
   await browser.close();
 }

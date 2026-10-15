@@ -1,5 +1,7 @@
 const GATEWAY_ID = 'demo-auto-router';
 const LIMITS = { messageChars: 200000, contextChars: 240000, requestBytes: 1000000 };
+const INFERENCE_TIMEOUT_MS = 120000;
+const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MODELS = [
   '@cf/openai/gpt-oss-20b',
   '@cf/google/gemma-4-26b-a4b-it',
@@ -45,6 +47,22 @@ async function readBody(request) {
     offset += chunk.byteLength;
   }
   return new TextDecoder().decode(bytes);
+}
+
+function correlationId(value) {
+  return typeof value === 'string' && /^[a-z0-9._-]{1,128}$/i.test(value) ? value : null;
+}
+
+function safeError(error) {
+  const names = ['Error', 'TypeError', 'SyntaxError', 'TimeoutError', 'AbortError', 'InferenceUpstreamError', 'AiInternalError'];
+  const code = error?.internalCode ?? error?.errors?.[0]?.code;
+  const causeCode = error?.cause?.code ?? error?.code;
+  const networkCodes = ['ECONNRESET', 'ECONNREFUSED', 'ENOTFOUND', 'ETIMEDOUT', 'EAI_AGAIN', 'UND_ERR_CONNECT_TIMEOUT', 'UND_ERR_SOCKET'];
+  return {
+    error_name: names.includes(error?.name) ? error.name : 'Error',
+    ...(Number.isSafeInteger(code) ? { internal_code: code } : {}),
+    ...(networkCodes.includes(causeCode) ? { cause_code: causeCode } : {}),
+  };
 }
 
 function modelId(value) {
@@ -97,7 +115,8 @@ async function usageStats(request, env, context) {
       else await update;
     }
     return response;
-  } catch {
+  } catch (error) {
+    console.error({ event: 'stats.failed', stage: 'usage_stats', ...safeError(error) });
     return json({ error: 'Usage statistics are temporarily unavailable.' }, 503);
   }
 }
@@ -116,28 +135,50 @@ function validMessages(body) {
 
 export default {
   async fetch(request, env, context) {
-    if (new URL(request.url).pathname === '/api/ai-stats') return usageStats(request, env, context);
-    if (new URL(request.url).pathname !== '/api/ai-chat') return json({ error: 'Not found.' }, 404);
-    if (request.method !== 'POST') return json({ error: 'Use POST to send a chat message.' }, 405);
-    if (!ORIGINS.has(request.headers.get('origin'))) return json({ error: 'Please use the chat on the demo website.' }, 403);
+    const path = new URL(request.url).pathname;
+    if (path === '/api/ai-stats') return usageStats(request, env, context);
+    if (path !== '/api/ai-chat') return json({ error: 'Not found.' }, 404);
+    const started = Date.now();
+    const incomingId = request.headers.get('x-request-id');
+    const requestId = UUID.test(incomingId || '') ? incomingId.toLowerCase() : crypto.randomUUID();
+    const diagnostics = { request_id: requestId, gateway_id: GATEWAY_ID, cf_ray: correlationId(request.headers.get('cf-ray')), stage: 'request', timeout_ms: INFERENCE_TIMEOUT_MS };
+    const respond = (body, status = 200) => json({ ...body, requestId }, status, { 'x-request-id': requestId });
+    const fail = (errorCode, error, status, extra = {}) => {
+      console[status >= 500 ? 'error' : 'warn']({ ...diagnostics, ...extra, event: 'chat.failed', error_kind: errorCode, status, duration_ms: Date.now() - started });
+      return respond({ error, errorCode }, status);
+    };
+    if (request.method !== 'POST') return fail('method_not_allowed', 'Use POST to send a chat message.', 405);
+    if (!ORIGINS.has(request.headers.get('origin'))) return fail('origin_rejected', 'Please use the chat on the demo website.', 403);
     if (request.headers.get('content-type')?.split(';')[0].trim().toLowerCase() !== 'application/json') {
-      return json({ error: 'Send a JSON request.' }, 415);
+      return fail('unsupported_content_type', 'Send a JSON request.', 415);
     }
-    const { success } = await env.CHAT_LIMITER.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
-    if (!success) return json({ error: 'Please wait a minute before sending another message.' }, 429);
-    const text = await readBody(request);
-    if (text === null) return json({ error: 'The encoded request exceeds 1 MB. Shorten the document or start a new chat.' }, 413);
     let body;
     try {
-      body = JSON.parse(text);
-    } catch {
-      return json({ error: 'Send a valid JSON request.' }, 400);
+      diagnostics.stage = 'rate_limit';
+      const { success } = await env.CHAT_LIMITER.limit({ key: request.headers.get('cf-connecting-ip') || 'unknown' });
+      if (!success) return fail('client_rate_limited', 'Please wait a minute before sending another message.', 429);
+      diagnostics.stage = 'request_body';
+      const text = await readBody(request);
+      if (text === null) return fail('request_too_large', 'The encoded request exceeds 1 MB. Shorten the document or start a new chat.', 413);
+      diagnostics.request_bytes = new TextEncoder().encode(text).byteLength;
+      try {
+        body = JSON.parse(text);
+      } catch (error) {
+        return fail('invalid_json', 'Send a valid JSON request.', 400, safeError(error));
+      }
+      diagnostics.stage = 'validation';
+      if (!validMessages(body)) return fail('invalid_request', 'Send valid messages and a session ID. Each message can contain up to 200,000 characters, with 240,000 characters of conversation context.', 400);
+    } catch (error) {
+      return fail('request_processing_error', 'The chat service is temporarily unavailable. Please try again.', 503, safeError(error));
     }
-    if (!validMessages(body)) return json({ error: 'Send valid messages and a session ID. Each message can contain up to 200,000 characters, with 240,000 characters of conversation context.' }, 400);
     const sessionId = body.sessionId || crypto.randomUUID();
     let selectedModel = 'unreported';
+    Object.assign(diagnostics, { session_id: sessionId, input_chars: body.messages.reduce((total, message) => total + message.content.length, 0), message_count: body.messages.length, stage: 'inference' });
+    console.info({ ...diagnostics, event: 'chat.started' });
+    let signal;
 
     try {
+      signal = AbortSignal.timeout(INFERENCE_TIMEOUT_MS);
       const response = await env.AI.run('cloudflare/auto', {
         messages: [
           { role: 'system', content: 'You are a helpful assistant in a public Cloudflare AI Gateway demo. Answer questions clearly and concisely. You have no live browsing or tools. Do not claim to access private accounts or perform actions. Keep answers under 1,500 characters.' },
@@ -145,7 +186,7 @@ export default {
         ],
         max_tokens: 4096,
       }, {
-        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router', session_id: sessionId, usage_tracking: 'v1' } },
+        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router', session_id: sessionId, usage_tracking: 'v1', request_id: requestId } },
         extraHeaders: {
           'cf-aig-session-id': sessionId,
           'cf-aig-allowed-providers': 'workers-ai',
@@ -153,31 +194,57 @@ export default {
           'cf-aig-no-session-affinity': 'true',
         },
         returnRawResponse: true,
-        signal: AbortSignal.timeout(60000),
+        signal,
       });
       selectedModel = modelId(response.headers.get('cf-aig-routed-model'));
+      Object.assign(diagnostics, {
+        stage: 'upstream_response', model: selectedModel, upstream_status: response.status,
+        gateway_log_id: correlationId(response.headers.get('cf-aig-log-id') || response.headers.get('cf-aig-request-id')),
+        routing_decision_id: correlationId(response.headers.get('cf-aig-routing-decision-id')),
+        routing_reason: correlationId(response.headers.get('cf-aig-routing-reason')),
+      });
       if (!response.ok) {
         await response.body?.cancel();
-        return response.status === 429
-          ? json({ error: 'The demo has reached a request or spending limit. Please try again later.' }, 429)
-          : json({ error: 'AI Gateway could not complete this request. Please try again.' }, 502);
+        if (response.status === 429) return fail('upstream_rate_limited', 'The demo has reached a request or spending limit. Please try again later.', 429);
+        if ([408, 504].includes(response.status)) return fail('upstream_timeout', 'AI Gateway or the selected model timed out. Please try again.', 504);
+        if ([400, 413].includes(response.status)) return fail('upstream_rejected', 'The model could not accept this request. Try a shorter conversation or start a new chat.', 400);
+        return fail('upstream_error', 'AI Gateway could not complete this request. Please try again.', 502);
       }
+      diagnostics.stage = 'response_body';
       const result = await response.json();
       if (selectedModel === 'unreported') selectedModel = modelId(result.model);
-      const reply = result.choices?.[0]?.message?.content || result.response;
-      if (typeof reply !== 'string' || !reply.trim()) return json({ error: 'The model returned no answer. Please try a shorter question.' }, 502);
-      return json({
-        reply,
-        sessionId,
-        model: selectedModel === 'unreported' ? null : selectedModel,
-        routingReason: response.headers.get('cf-aig-routing-reason'),
-        decisionId: response.headers.get('cf-aig-routing-decision-id'),
-        logId: response.headers.get('cf-aig-log-id') || response.headers.get('cf-aig-request-id') || null,
+      const choice = result.choices?.[0];
+      Object.assign(diagnostics, {
+        model: selectedModel, stage: 'response_validation',
+        finish_reason: ['stop', 'length', 'tool_calls', 'content_filter', 'function_call'].includes(choice?.finish_reason) ? choice.finish_reason : null,
+        tokens_in: Number.isSafeInteger(result.usage?.prompt_tokens) ? result.usage.prompt_tokens : null,
+        tokens_out: Number.isSafeInteger(result.usage?.completion_tokens) ? result.usage.completion_tokens : null,
       });
-    } catch {
-      return json({ error: 'AI Gateway is taking too long or is unavailable. Please try again.' }, 502);
+      const reply = choice?.message?.content || result.response;
+      if (typeof reply !== 'string' || !reply.trim()) {
+        return diagnostics.finish_reason === 'length'
+          ? fail('output_limit', 'The model exhausted its output budget before answering. Try a more focused question.', 502)
+          : fail('empty_response', 'The model returned no answer. Please try a shorter question.', 502);
+      }
+      console.info({ ...diagnostics, event: 'chat.completed', stage: 'complete', status: 200, duration_ms: Date.now() - started, output_chars: reply.length });
+      return respond({
+        reply, sessionId,
+        model: selectedModel === 'unreported' ? null : selectedModel,
+        routingReason: diagnostics.routing_reason,
+        decisionId: diagnostics.routing_decision_id,
+        logId: diagnostics.gateway_log_id,
+      });
+    } catch (error) {
+      const details = safeError(error);
+      if (signal?.aborted || error?.name === 'TimeoutError') {
+        return fail('inference_timeout', 'The AI request timed out. The app allows up to 120 seconds; please try again or shorten the question.', 504, details);
+      }
+      if (error?.name === 'AbortError') return fail('upstream_aborted', 'The upstream request was interrupted. Please try again.', 502, details);
+      return diagnostics.stage === 'response_body'
+        ? fail('invalid_upstream_response', 'AI Gateway returned an incomplete or invalid response. Please try again.', 502, details)
+        : fail('upstream_unavailable', 'AI Gateway is temporarily unavailable. Please try again.', 502, details);
     } finally {
-      const update = recordUsage(env, selectedModel).catch(() => console.error('Could not record aggregate chat usage.'));
+      const update = recordUsage(env, selectedModel).catch(error => console.error({ request_id: requestId, gateway_id: GATEWAY_ID, event: 'chat.metrics_failed', stage: 'usage_metrics', ...safeError(error) }));
       if (context?.waitUntil) context.waitUntil(update);
       else await update;
     }
