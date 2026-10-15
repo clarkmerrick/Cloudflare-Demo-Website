@@ -6,6 +6,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "ai": { "binding": "AI" },
+  "d1_databases": [
+    { "binding": "USAGE_DB", "database_name": "demo-auto-router-usage", "database_id": "a46d6535-5c05-4f05-ba98-0cbeb8cb40ec" }
+  ],
   "ratelimits": [
     {
       "name": "CHAT_LIMITER",
@@ -14,6 +17,7 @@
     }
   ],
   "routes": [
-    { "pattern": "demo.clarkmerrick.com/api/ai-chat", "zone_id": "df194a551022ee768d93a48d2aff4647" }
+    { "pattern": "demo.clarkmerrick.com/api/ai-chat", "zone_id": "df194a551022ee768d93a48d2aff4647" },
+    { "pattern": "demo.clarkmerrick.com/api/ai-stats", "zone_id": "df194a551022ee768d93a48d2aff4647" }
   ]
 }

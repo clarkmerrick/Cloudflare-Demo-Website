@@ -103,6 +103,39 @@ try {
   assert.deepEqual(tracking, []);
   assert.deepEqual(errors, []);
 
+  const documents = await browser.newPage();
+  const documentRequests = await mockChat(documents);
+  await documents.goto(url, { waitUntil: 'networkidle' });
+  assert.equal(await documents.locator('#prompt').getAttribute('maxlength'), null);
+  const longDocument = 'DOCUMENT-START\n' + 'a'.repeat(199972) + '\nDOCUMENT-END';
+  assert.equal(longDocument.length, 200000);
+  await send(documents, longDocument);
+  assert.equal(documentRequests[0].messages[0].content, longDocument);
+  await send(documents, 'Summarize the ending too.');
+  assert.equal(documentRequests[1].messages[0].content, longDocument);
+  const otherDocument = 'SECOND-START\n' + 'b'.repeat(199976) + '\nSECOND-END';
+  assert.equal(otherDocument.length, 200000);
+  await send(documents, otherDocument);
+  assert.equal(documentRequests[2].messages.at(-1).content, otherDocument);
+  assert.equal(documentRequests[2].messages.some(message => message.content === longDocument), false);
+  assert.match(await documents.locator('#chat-status').textContent(), /Older turns were omitted/);
+  await documents.locator('#prompt').fill('x'.repeat(200001));
+  assert.equal((await documents.locator('#prompt').inputValue()).length, 200001);
+  assert.equal(await documents.locator('#prompt-warning').isVisible(), true);
+  assert.match(await documents.locator('#prompt-count').textContent(), /200,001/);
+  await documents.locator('#send').click();
+  assert.equal(documentRequests.length, 3);
+  await documents.locator('#prompt').fill(String.fromCharCode(1).repeat(180000));
+  assert.match(await documents.locator('#prompt-warning').textContent(), /1 MB/);
+  await documents.locator('#send').click();
+  assert.equal(documentRequests.length, 3);
+  await documents.getByRole('button', { name: 'Explain a CDN', exact: true }).click();
+  assert.equal(await documents.locator('#prompt-warning').isVisible(), false);
+  await documents.getByRole('button', { name: 'New chat', exact: true }).click();
+  assert.match(await documents.locator('#prompt-count').textContent(), /^0 \/ 200,000/);
+  await documents.setViewportSize({ width: 390, height: 844 });
+  assert.equal(await documents.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
+
   for (const library of ['marked', 'dompurify']) {
     const fallback = await browser.newPage();
     await fallback.route(new RegExp(`cdn\\.jsdelivr\\.net/npm/${library}@`), route => route.abort());
@@ -112,7 +145,7 @@ try {
     assert.equal(await fallback.locator('.chat-assistant .chat-content').last().textContent(), markdown);
     assert.equal(await fallback.locator('#transcript img, #transcript script').count(), 0);
   }
-  console.log('PASS: Markdown formatting, sanitized HTML and links, no tracking images, literal user/metadata text, original conversation context, session continuity, mobile code overflow, and offline-library fallback.');
+  console.log('PASS: Markdown formatting, XSS protection, session continuity, complete long documents, oversized-input validation, explicit context trimming, mobile layout, and offline-library fallback.');
 } finally {
   await browser.close();
 }

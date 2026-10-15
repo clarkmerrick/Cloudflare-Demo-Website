@@ -35,11 +35,19 @@
       code { color: #111; background: #fff; padding: .1rem .35rem; border-radius: .25rem; }
       .btn-demo { background: #cad2c5; color: #2f3e46; border-color: #cad2c5; }
       .btn-demo:hover, .btn-demo:focus { background: #fff; color: #2f3e46; border-color: #fff; }
+      .usage-bars { display: flex; align-items: flex-end; gap: .3rem; height: 180px; border-bottom: 1px solid #84a98c; padding: 0; margin-bottom: .5rem; list-style: none; }
+      .usage-column { display: flex; align-items: flex-end; flex: 1; height: 100%; min-width: 0; }
+      .usage-bar { display: block; width: 100%; background: #52796f; border-radius: .2rem .2rem 0 0; }
+      #usage-models th { font-weight: 400; }
+      #usage-models td:last-child { min-width: 100px; }
+      #usage-models .progress { height: .45rem; background: #fff; }
+      #usage-models .progress-bar { background: #52796f; }
       @media (prefers-reduced-motion: reduce) { .chat-transcript { scroll-behavior: auto; } }
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js" integrity="sha384-IvVdUXkhyoD0shbjhiiOnuiTbervTaB0VJcnEcg3shUAMVOOF6lKj4ozJrCwvz6s" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <script src="/assets/autorouter.js?v=3" defer></script>
+    <script src="/assets/autorouter.js?v=4" defer></script>
+    <script src="/assets/autorouter-stats.js?v=1" defer></script>
   </head>
   <body>
     <main>
@@ -76,12 +84,19 @@
                 <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Explain what a CDN does in two sentences.">Explain a CDN</button>
                 <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Write a short JavaScript function that removes duplicate values from an array, and explain it.">Write some code</button>
                 <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="A shop sells notebooks for $5 each. Buy 3 and get a 20% discount on the total. What do I pay, and how did you calculate it?">Solve a problem</button>
+                <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Plan a zero-downtime migration of a multi-tenant PostgreSQL app to sharded databases while writes continue. Address consistency, idempotent replay, verification, cutover, rollback after partial failure, and safe tenant routing. Give a concise plan and explain the main tradeoff.">Plan a migration</button>
+                <button type="button" class="btn btn-sm btn-outline-light example-prompt" data-prompt="Write an original, playful four-line poem about a bee debugging a race condition in a flower shop. Keep it light and make the final line a technical joke.">Write a poem</button>
               </div>
               <form id="chat-form">
                 <label for="prompt" class="form-label">Your message</label>
-                <textarea id="prompt" class="form-control mb-2" rows="3" maxlength="2000" required placeholder="What would you like to know?" aria-describedby="prompt-help"></textarea>
+                <textarea id="prompt" class="form-control mb-2" rows="3" required placeholder="Ask a question or paste a document to summarize..." aria-describedby="prompt-help prompt-count prompt-warning"></textarea>
+                <div class="d-flex flex-wrap justify-content-between gap-2 small mb-2">
+                  <span id="prompt-count">0 / 200,000 characters</span>
+                  <span>Oversized pastes are rejected, never silently cut off.</span>
+                </div>
+                <p id="prompt-warning" class="small text-warning mb-2" role="alert" hidden></p>
                 <div class="d-flex flex-wrap align-items-center justify-content-between gap-2">
-                  <span id="prompt-help" class="small">Enter to send. Shift + Enter for a new line. Up to 2,000 characters.</span>
+                  <span id="prompt-help" class="small">Enter to send. Shift + Enter for a new line. Up to 200,000 characters; model context limits still apply.</span>
                   <button id="send" type="submit" class="btn btn-demo px-4">Send message</button>
                 </div>
               </form>
@@ -101,8 +116,12 @@
                 <li class="mb-2">OpenAI GPT OSS 20B</li>
                 <li class="mb-2">Google Gemma 4 26B A4B</li>
                 <li class="mb-2">DeepSeek V4 Flash</li>
+                <li class="mb-2">DeepSeek V4 Pro</li>
+                <li class="mb-2">Moonshot Kimi K2.7 Code</li>
+                <li class="mb-2">Qwen 3.8 27B</li>
+                <li class="mb-2">Z.ai GLM 5.2</li>
               </ul>
-              <p class="small">All three are hosted on Workers AI. The server fixes this pool; visitors cannot switch to another provider. Eligible models depend on availability and account configuration.</p>
+              <p class="small">These are all seven Workers AI chat models currently listed as Auto Router candidates in Cloudflare's public documentation, not the entire image, audio, and text model catalog. The server restricts requests to this hosted pool. Eligibility still depends on request compatibility, availability, and account configuration.</p>
               <h3 class="h5 mt-4">Watch the decision</h3>
               <p>Each reply shows the selected model and routing reason, when returned by the gateway. Different questions may use the same model; selection is not random or round robin.</p>
               <h3 class="h5 mt-4">For the live demo</h3>
@@ -111,6 +130,38 @@
             </aside>
           </div>
         </div>
+
+        <section class="p-4 p-md-5 mb-4 bg-5 rounded-3 text-dark" aria-labelledby="usage-heading">
+          <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+            <div>
+              <h2 id="usage-heading">Recent AI traffic</h2>
+              <p class="mb-0">Public model counts across the latest 24 hourly buckets, including the current partial hour. Times are UTC.</p>
+            </div>
+            <div class="text-end"><strong id="usage-total" class="display-6">&mdash;</strong><div>observed requests</div></div>
+          </div>
+          <div id="usage-content" hidden>
+            <p id="usage-empty">No requests in this window yet. Try the chat to create the first sample.</p>
+            <div class="row">
+              <div class="col-lg-6 mb-4">
+                <h3 class="h5">Requests over time</h3>
+                <p id="usage-peak" class="small"></p>
+                <ol id="usage-bars" class="usage-bars" aria-label="Hourly request counts"></ol>
+                <div class="d-flex justify-content-between gap-2 small"><span id="usage-first-hour"></span><span id="usage-last-hour"></span></div>
+              </div>
+              <div class="col-lg-6 mb-4">
+                <h3 class="h5">Which models were used?</h3>
+                <div class="table-responsive">
+                  <table class="table table-sm align-middle mb-0">
+                    <thead><tr><th scope="col">Model</th><th scope="col">Requests</th><th scope="col">Share</th></tr></thead>
+                    <tbody id="usage-models"></tbody>
+                  </table>
+                </div>
+              </div>
+            </div>
+          </div>
+          <p id="usage-status" class="small mb-2" role="status">Loading aggregate usage statistics...</p>
+          <p class="small mb-0">Only hourly model counts are published. No prompts, answers, session IDs, or visitor details are exposed. Counts include demo and test traffic, not unique visitors; historical gateway logs seed the chart and new chat attempts update it. Errors without a reported model appear as unreported. Percentages are rounded.</p>
+        </section>
 
         <section class="p-4 p-md-5 mb-4 bg-3 rounded-3 text-white" aria-labelledby="flow-heading">
           <h2 id="flow-heading" class="mb-4">How Auto Router works, step by step</h2>
@@ -143,7 +194,7 @@
             </div>
             <div class="col-md-6 mb-4">
               <h3 class="h5">Simplify your application</h3>
-              <p class="mb-0">Your app asks for <code>cloudflare/auto</code> instead of maintaining its own model-selection logic. You still control which models and providers are allowed. In this demo, every request stays within our three-model Workers AI pool.</p>
+              <p class="mb-0">Your app asks for <code>cloudflare/auto</code> instead of maintaining its own model-selection logic. You still control which models and providers are allowed. In this demo, every request stays within the supported Workers AI chat pool.</p>
             </div>
           </div>
           <div class="border-top border-secondary pt-4">

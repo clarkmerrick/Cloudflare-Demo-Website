@@ -58,7 +58,11 @@ test('every inference uses Auto Router with a server-controlled Workers AI pool 
   assert.equal(options.gateway.skipCache, true);
   assert.equal(options.returnRawResponse, true);
   assert.equal(options.extraHeaders['cf-aig-allowed-providers'], 'workers-ai');
-  assert.equal(options.extraHeaders['cf-aig-allowed-models'].split(',').length, 3);
+  assert.deepEqual(options.extraHeaders['cf-aig-allowed-models'].split(','), [
+    '@cf/openai/gpt-oss-20b', '@cf/google/gemma-4-26b-a4b-it',
+    '@cf/deepseek-ai/deepseek-v4-flash-0731', '@cf/deepseek-ai/deepseek-v4-pro-0813',
+    '@cf/moonshotai/kimi-k2.7-code', '@cf/qwen/qwen3.8-27b', '@cf/zai-org/glm-5.2',
+  ]);
   assert.equal(options.extraHeaders['cf-aig-no-session-affinity'], 'true');
 });
 
@@ -89,8 +93,8 @@ test('rejects invalid JSON, roles, empty messages, oversized history and client 
     { messages: [{ role: 'user', content: 42 }] },
     { messages: [{ role: 'assistant', content: 'not a user turn' }] },
     { messages: Array.from({ length: 21 }, () => messages[0]) },
-    { messages: [{ role: 'user', content: 'x'.repeat(2001) }] },
-    { messages: Array.from({ length: 7 }, () => ({ role: 'user', content: 'x'.repeat(2000) })) },
+    { messages: [{ role: 'user', content: 'x'.repeat(200001) }] },
+    { messages: Array.from({ length: 3 }, () => ({ role: 'user', content: 'x'.repeat(100000) })) },
     { messages, model: 'openai/other' },
   ];
   for (const body of invalid) {
@@ -104,7 +108,7 @@ test('rejects invalid JSON, roles, empty messages, oversized history and client 
 test('requires JSON and bounds request bodies', async () => {
   const { env } = setup();
   assert.equal((await worker.fetch(request({ messages }, { headers: { 'content-type': 'text/plain' } }), env)).status, 415);
-  assert.equal((await worker.fetch(request('x'.repeat(16001)), env)).status, 413);
+  assert.equal((await worker.fetch(request('x'.repeat(1000001)), env)).status, 413);
 });
 
 test('rate limits before AI inference', async () => {
@@ -160,4 +164,36 @@ test('supports older clients with a generated per-request session ID', async () 
   const result = await (await worker.fetch(request(), env)).json();
   assert.match(result.sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
   assert.equal(calls[1].args[2].gateway.metadata.session_id, result.sessionId);
+});
+
+test('forwards an entire 200,000-character document, including its ending', async () => {
+  for (const character of ['a', '界']) {
+    const content = character.repeat(199987) + 'END-OF-SCRIPT';
+    assert.equal(content.length, 200000);
+    const { calls, env } = setup();
+    const response = await worker.fetch(request({ messages: [{ role: 'user', content }] }), env);
+    assert.equal(response.status, 200);
+    assert.equal(calls[1].args[1].messages[1].content, content);
+  }
+});
+
+test('accepts 240,000 characters of conversation context and rejects more', async () => {
+  const history = [
+    { role: 'user', content: 'a'.repeat(119000) },
+    { role: 'assistant', content: 'b'.repeat(1000) },
+    { role: 'user', content: 'c'.repeat(120000) },
+  ];
+  const { env } = setup();
+  assert.equal((await worker.fetch(request({ messages: history }), env)).status, 200);
+  history[2].content += 'x';
+  assert.equal((await worker.fetch(request({ messages: history }), env)).status, 400);
+});
+
+test('accepts a one-megabyte JSON body but rejects larger encoded bodies', async () => {
+  const { env } = setup();
+  const json = JSON.stringify({ messages });
+  const body = json + ' '.repeat(1000000 - json.length);
+  assert.equal((await worker.fetch(request(body), env)).status, 200);
+  assert.equal((await worker.fetch(request(body + ' '), env)).status, 413);
+  assert.equal((await worker.fetch(request({ messages: [{ role: 'user', content: '\u0001'.repeat(180000) }] }), env)).status, 413);
 });

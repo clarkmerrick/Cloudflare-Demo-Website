@@ -1,4 +1,5 @@
 (() => {
+  const LIMITS = { messageChars: 200000, contextChars: 240000, requestBytes: 1000000 };
   const form = document.getElementById('chat-form');
   const prompt = document.getElementById('prompt');
   const transcript = document.getElementById('transcript');
@@ -12,6 +13,26 @@
   let history = [];
   let busy = false;
   sessionLabel.textContent = `Anonymous session: ${sessionId}`;
+  const counter = document.getElementById('prompt-count');
+  const warning = document.getElementById('prompt-warning');
+
+  function updatePromptState() {
+    counter.textContent = `${prompt.value.length.toLocaleString('en-US')} / 200,000 characters`;
+    const message = prompt.value.length > LIMITS.messageChars
+      ? 'This message exceeds 200,000 characters. Nothing has been cut off; shorten it before sending.'
+      : new TextEncoder().encode(JSON.stringify({ messages: [{ role: 'user', content: prompt.value.trim() }], sessionId })).byteLength > LIMITS.requestBytes
+        ? 'This message exceeds the 1 MB encoded request limit. Nothing has been cut off; shorten it before sending.'
+        : '';
+    prompt.setCustomValidity(message);
+    prompt.setAttribute('aria-invalid', String(Boolean(message)));
+    prompt.classList.toggle('is-invalid', Boolean(message));
+    warning.textContent = message;
+    warning.hidden = !message;
+    return !message;
+  }
+
+  prompt.addEventListener('input', updatePromptState);
+  updatePromptState();
 
   function addMessage(role, content, details) {
     const message = document.createElement('div');
@@ -78,6 +99,7 @@
   document.querySelectorAll('.example-prompt').forEach(button => {
     button.addEventListener('click', () => {
       prompt.value = button.dataset.prompt;
+      updatePromptState();
       prompt.focus();
     });
   });
@@ -88,6 +110,7 @@
     history = [];
     transcript.replaceChildren(welcome.cloneNode(true));
     prompt.value = '';
+    updatePromptState();
     error.hidden = true;
     status.textContent = 'New chat. Every request goes through Auto Router.';
     prompt.focus();
@@ -104,12 +127,18 @@
     event.preventDefault();
     const content = prompt.value.trim();
     if (busy || !content) return;
+    if (!updatePromptState()) {
+      prompt.reportValidity();
+      return;
+    }
     error.hidden = true;
     const messages = [...history, { role: 'user', content }];
-    while (messages.length > 20 || messages.reduce((total, message) => total + message.content.length, 0) > 12000 ||
-      new TextEncoder().encode(JSON.stringify({ messages, sessionId })).byteLength > 16000) {
+    while (messages.length > 1 && (messages.length > 20 ||
+      messages.reduce((total, message) => total + message.content.length, 0) > LIMITS.contextChars ||
+      new TextEncoder().encode(JSON.stringify({ messages, sessionId })).byteLength > LIMITS.requestBytes)) {
       messages.splice(0, 2);
     }
+    const droppedContext = messages.length < history.length + 1;
     addMessage('user', content);
     setBusy(true);
     status.textContent = 'Auto Router is choosing a model and generating a reply...';
@@ -124,9 +153,12 @@
       if (!response.ok) throw new Error(result.error || 'The demo is temporarily unavailable. Please try again.');
       if (typeof result.reply !== 'string' || !result.reply.trim()) throw new Error('The model returned no answer. Please try again.');
       addMessage('assistant', result.reply, result);
-      history = [...messages, { role: 'assistant', content: result.reply.slice(0, 2000) }];
+      history = [...messages, { role: 'assistant', content: result.reply.slice(0, LIMITS.messageChars) }];
       prompt.value = '';
-      status.textContent = 'Reply received through AI Gateway Auto Router. Try another question.';
+      updatePromptState();
+      status.textContent = droppedContext
+        ? 'Reply received through AI Gateway Auto Router. Older turns were omitted to fit the context limit; your latest message was sent in full.'
+        : 'Reply received through AI Gateway Auto Router. Try another question.';
     } catch (cause) {
       error.textContent = cause.name === 'TimeoutError'
         ? 'The request took too long. Please try again.'
