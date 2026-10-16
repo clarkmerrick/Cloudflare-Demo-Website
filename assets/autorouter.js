@@ -145,37 +145,52 @@
     setBusy(true);
     status.textContent = 'Auto Router is choosing a model and generating a reply...';
     let referenceId = crypto.randomUUID();
+    let retryOf = null;
     let errorCode = '';
+    let result;
     try {
-      const response = await fetch('/api/ai-chat', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', 'X-Request-ID': referenceId },
-        body: JSON.stringify({ messages, sessionId }),
-        signal: AbortSignal.timeout(130000),
-      });
-      const headerId = response.headers.get('x-request-id');
-      if (UUID.test(headerId || '')) referenceId = headerId;
-      const result = await response.json();
-      if (UUID.test(result.requestId || '')) referenceId = result.requestId;
-      if (typeof result.errorCode === 'string' && /^[a-z_]{1,64}$/.test(result.errorCode)) errorCode = result.errorCode;
-      if (!response.ok) throw new Error(result.error || 'The demo is temporarily unavailable. Please try again.');
+      for (let attempt = 0; attempt < 2; attempt++) {
+        errorCode = '';
+        const response = await fetch('/api/ai-chat', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'X-Request-ID': referenceId, ...(retryOf ? { 'X-Retry-Of': retryOf } : {}) },
+          body: JSON.stringify({ messages, sessionId }),
+          signal: AbortSignal.timeout(130000),
+        });
+        const headerId = response.headers.get('x-request-id');
+        if (UUID.test(headerId || '')) referenceId = headerId;
+        result = await response.json();
+        if (UUID.test(result.requestId || '')) referenceId = result.requestId;
+        if (typeof result.errorCode === 'string' && /^[a-z_]{1,64}$/.test(result.errorCode)) errorCode = result.errorCode;
+        if (response.ok) break;
+        if (attempt === 0 && result.retryable === true && [502, 503, 504].includes(response.status)) {
+          retryOf = referenceId;
+          referenceId = crypto.randomUUID();
+          status.textContent = 'The AI request did not finish successfully. Retrying once through Auto Router...';
+          await new Promise(resolve => setTimeout(resolve, 500));
+        } else {
+          throw new Error(result.error || 'The demo is temporarily unavailable. Please try again.');
+        }
+      }
       if (typeof result.reply !== 'string' || !result.reply.trim()) throw new Error('The model returned no answer. Please try again.');
       addMessage('assistant', result.reply, { ...result, requestId: referenceId });
       history = [...messages, { role: 'assistant', content: result.reply.slice(0, LIMITS.messageChars) }];
       prompt.value = '';
       updatePromptState();
-      status.textContent = droppedContext
-        ? 'Reply received through AI Gateway Auto Router. Older turns were omitted to fit the context limit; your latest message was sent in full.'
-        : 'Reply received through AI Gateway Auto Router. Try another question.';
+      status.textContent = 'Reply received through AI Gateway Auto Router.' +
+        (retryOf ? ' Recovered after one automatic retry.' : '') +
+        (droppedContext ? ' Older turns were omitted to fit the context limit; your latest message was sent in full.' : ' Try another question.');
     } catch (cause) {
       const message = cause.name === 'TimeoutError'
         ? 'The connection timed out before a reply arrived. The request may still be running; use the reference ID to investigate before retrying.'
         : cause instanceof SyntaxError || cause instanceof TypeError
           ? 'Could not reach the chat service. Please try again on demo.clarkmerrick.com.'
           : cause.message;
-      error.textContent = `${message}${errorCode ? ` Error code: ${errorCode}.` : ''} Reference ID: ${referenceId}`;
+      error.textContent = `${message}${errorCode ? ` Error code: ${errorCode}.` : ''} Reference ID: ${referenceId}${retryOf ? ` Previous attempt ID: ${retryOf}` : ''}`;
       error.hidden = false;
-      status.textContent = 'No reply received. Your message is still in the box so you can retry.';
+      status.textContent = retryOf
+        ? 'No reply received after one automatic retry. Your message is still in the box.'
+        : 'No reply received. Your message is still in the box so you can retry.';
     } finally {
       setBusy(false);
       prompt.focus();

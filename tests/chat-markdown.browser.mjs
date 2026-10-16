@@ -139,6 +139,55 @@ try {
   await documents.setViewportSize({ width: 390, height: 844 });
   assert.equal(await documents.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
 
+  const recovery = await browser.newPage();
+  const attempts = [];
+  await recovery.route('**/api/ai-chat', async route => {
+    const headers = route.request().headers();
+    const body = route.request().postDataJSON();
+    const requestId = headers['x-request-id'];
+    attempts.push({ body, requestId, retryOf: headers['x-retry-of'] });
+    if (attempts.length === 1) await route.fulfill({ status: 504, json: { error: 'Temporary timeout.', errorCode: 'inference_timeout', retryable: true, requestId } });
+    else await route.fulfill({ json: { reply: '**Recovered**', requestId, sessionId: body.sessionId, model: '@cf/qwen/qwen3.8-27b' } });
+  });
+  await recovery.goto(url, { waitUntil: 'networkidle' });
+  await send(recovery, 'A harmless retry test');
+  assert.equal(attempts.length, 2);
+  assert.notEqual(attempts[0].requestId, attempts[1].requestId);
+  assert.equal(attempts[0].retryOf, undefined);
+  assert.equal(attempts[1].retryOf, attempts[0].requestId);
+  assert.deepEqual(attempts[0].body, attempts[1].body);
+  assert.equal(await recovery.locator('.chat-user').count(), 1);
+  assert.equal(await recovery.locator('#chat-error').isVisible(), false);
+  assert.match(await recovery.locator('#chat-status').textContent(), /Recovered after one automatic retry/);
+  await send(recovery, 'Follow up');
+  assert.equal(attempts[2].retryOf, undefined);
+  assert.equal(attempts[2].body.messages.length, 3);
+  assert.equal(attempts[2].body.messages[1].content, '**Recovered**');
+
+  for (const example of [
+    { status: 400, retryable: false, errorCode: 'invalid_request', attempts: 1 },
+    { status: 429, retryable: true, errorCode: 'client_rate_limited', attempts: 1 },
+    { status: 502, retryable: false, errorCode: 'output_limit', attempts: 1 },
+    { status: 504, retryable: true, errorCode: 'inference_timeout', attempts: 2 },
+  ]) {
+    const failure = await browser.newPage();
+    const ids = [];
+    await failure.route('**/api/ai-chat', async route => {
+      const requestId = route.request().headers()['x-request-id'];
+      ids.push(requestId);
+      await route.fulfill({ status: example.status, json: { error: 'Test failure.', errorCode: example.errorCode, retryable: example.retryable, requestId } });
+    });
+    await failure.goto(url, { waitUntil: 'networkidle' });
+    await failure.locator('#prompt').fill('Retain this draft');
+    await failure.locator('#send').click();
+    await failure.locator('#chat-error').waitFor({ state: 'visible' });
+    assert.equal(ids.length, example.attempts);
+    assert.equal(await failure.locator('.chat-user').count(), 1);
+    assert.equal(await failure.locator('#prompt').inputValue(), 'Retain this draft');
+    assert.ok((await failure.locator('#chat-error').textContent()).includes(ids.at(-1)));
+    if (example.attempts === 2) assert.match(await failure.locator('#chat-error').textContent(), new RegExp(`Previous attempt ID: ${ids[0]}`));
+  }
+
   for (const networkFailure of [false, true]) {
     const failure = await browser.newPage();
     let referenceId;
@@ -167,7 +216,7 @@ try {
     assert.equal(await fallback.locator('.chat-assistant .chat-content').last().textContent(), markdown);
     assert.equal(await fallback.locator('#transcript img, #transcript script').count(), 0);
   }
-  console.log('PASS: Markdown/XSS safety, session continuity, long documents, explicit validation/context trimming, server/network error reference IDs, mobile layout, and offline-library fallback.');
+  console.log('PASS: Markdown/XSS safety, long documents, one bounded retry with linked IDs and unchanged context, no retry for permanent/ambiguous failures, draft preservation, mobile layout, and offline-library fallback.');
 } finally {
   await browser.close();
 }

@@ -141,11 +141,16 @@ export default {
     const started = Date.now();
     const incomingId = request.headers.get('x-request-id');
     const requestId = UUID.test(incomingId || '') ? incomingId.toLowerCase() : crypto.randomUUID();
-    const diagnostics = { request_id: requestId, gateway_id: GATEWAY_ID, cf_ray: correlationId(request.headers.get('cf-ray')), stage: 'request', timeout_ms: INFERENCE_TIMEOUT_MS };
+    const incomingParent = request.headers.get('x-retry-of');
+    const retryOf = UUID.test(incomingParent || '') && incomingParent.toLowerCase() !== requestId ? incomingParent.toLowerCase() : null;
+    const diagnostics = { request_id: requestId, gateway_id: GATEWAY_ID, cf_ray: correlationId(request.headers.get('cf-ray')), stage: 'request', timeout_ms: INFERENCE_TIMEOUT_MS, ...(retryOf ? { retry_of: retryOf } : {}) };
     const respond = (body, status = 200) => json({ ...body, requestId }, status, { 'x-request-id': requestId });
     const fail = (errorCode, error, status, extra = {}) => {
-      console[status >= 500 ? 'error' : 'warn']({ ...diagnostics, ...extra, event: 'chat.failed', error_kind: errorCode, status, duration_ms: Date.now() - started });
-      return respond({ error, errorCode }, status);
+      const retryable = ['inference_timeout', 'upstream_timeout', 'upstream_aborted'].includes(errorCode) ||
+        (errorCode === 'upstream_error' && [500, 502, 503, 504].includes(diagnostics.upstream_status)) ||
+        (errorCode === 'upstream_unavailable' && (extra.internal_code === 3040 || Boolean(extra.cause_code)));
+      console[status >= 500 ? 'error' : 'warn']({ ...diagnostics, ...extra, event: 'chat.failed', error_kind: errorCode, retryable, status, duration_ms: Date.now() - started });
+      return respond({ error, errorCode, retryable }, status);
     };
     if (request.method !== 'POST') return fail('method_not_allowed', 'Use POST to send a chat message.', 405);
     if (!ORIGINS.has(request.headers.get('origin'))) return fail('origin_rejected', 'Please use the chat on the demo website.', 403);
@@ -186,9 +191,8 @@ export default {
         ],
         max_tokens: 4096,
       }, {
-        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router', session_id: sessionId, usage_tracking: 'v1', request_id: requestId } },
+        gateway: { id: GATEWAY_ID, skipCache: true, collectLog: true, metadata: { demo: 'website-auto-router', app_conversation: sessionId, usage_tracking: 'v1', request_id: requestId, ...(retryOf ? { retry_of: retryOf } : {}) } },
         extraHeaders: {
-          'cf-aig-session-id': sessionId,
           'cf-aig-allowed-providers': 'workers-ai',
           'cf-aig-allowed-models': MODELS.join(','),
           'cf-aig-no-session-affinity': 'true',

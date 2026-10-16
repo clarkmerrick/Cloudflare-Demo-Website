@@ -81,6 +81,8 @@ test('timeouts have a specific 504 response and searchable private diagnostics',
   const result = await response.json();
   assert.equal(response.status, 504);
   assert.equal(result.errorCode, 'inference_timeout');
+  assert.equal(result.retryable, true);
+  assert.equal(failedEvent().retryable, true);
   assert.equal(result.requestId, clientId);
   assert.match(result.error, /120 seconds/);
   assert.equal(failedEvent().error_name, 'TimeoutError');
@@ -154,6 +156,44 @@ test('untrusted request IDs are replaced rather than logged or reflected', async
   const response = await worker.fetch(request(undefined, 'PRIVATE_BAD_ID'), env);
   const result = await response.json();
   assert.match(result.requestId, uuid);
+  assertPrivate();
+});
+
+test('only known temporary failures are marked retryable', async () => {
+  for (const upstreamStatus of [408, 500, 502, 503, 504]) {
+    const { env } = setup({ upstreamStatus });
+    const result = await (await worker.fetch(request(), env)).json();
+    assert.equal(result.retryable, true, String(upstreamStatus));
+  }
+  for (const upstreamStatus of [400, 401, 403, 404, 413, 429, 501]) {
+    const { env } = setup({ upstreamStatus });
+    const result = await (await worker.fetch(request(), env)).json();
+    assert.equal(result.retryable, false, String(upstreamStatus));
+  }
+  for (const options of [{ reply: '' }, { reply: '', finishReason: 'length' }]) {
+    const { env } = setup(options);
+    assert.equal((await (await worker.fetch(request(), env)).json()).retryable, false);
+  }
+  const { env } = setup({ mode: 'transport' });
+  assert.equal((await (await worker.fetch(request(), env)).json()).retryable, true);
+});
+
+test('a validated retry parent is correlated without pinning or expanding the model pool', async () => {
+  const parentId = 'a2a4d6fc-4db4-4c58-9185-fb51b07e1a50';
+  const { env, calls } = setup();
+  const retry = request();
+  retry.headers.set('x-retry-of', parentId);
+  assert.equal((await worker.fetch(retry, env)).status, 200);
+  assert.equal(calls[0][0], 'cloudflare/auto');
+  assert.equal(calls[0][2].gateway.metadata.retry_of, parentId);
+  assert.equal(Object.keys(calls[0][2].gateway.metadata).length, 5);
+  assert.equal(calls[0][2].extraHeaders['cf-aig-no-session-affinity'], 'true');
+  assert.equal(events.find(entry => entry.data?.event === 'chat.completed').data.retry_of, parentId);
+  events = [];
+  const invalid = request();
+  invalid.headers.set('x-retry-of', 'PRIVATE_BAD_RETRY');
+  await worker.fetch(invalid, env);
+  assert.equal(calls[1][2].gateway.metadata.retry_of, undefined);
   assertPrivate();
 });
 

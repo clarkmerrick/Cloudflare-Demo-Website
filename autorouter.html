@@ -46,7 +46,7 @@
     </style>
     <script src="https://cdn.jsdelivr.net/npm/marked@18.1.0/lib/marked.umd.js" integrity="sha384-IvVdUXkhyoD0shbjhiiOnuiTbervTaB0VJcnEcg3shUAMVOOF6lKj4ozJrCwvz6s" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
     <script src="https://cdn.jsdelivr.net/npm/dompurify@3.4.16/dist/purify.min.js" integrity="sha384-a7SzOxErzJ3ZpQz0zJ32d67dSitNzPcbfybc/ykU9KJhMgZkwqfSxlhhdJRS+XGL" crossorigin="anonymous" referrerpolicy="no-referrer" defer></script>
-    <script src="/assets/autorouter.js?v=5" defer></script>
+    <script src="/assets/autorouter.js?v=6" defer></script>
     <script src="/assets/autorouter-stats.js?v=1" defer></script>
   </head>
   <body>
@@ -160,7 +160,7 @@
             </div>
           </div>
           <p id="usage-status" class="small mb-2" role="status">Loading aggregate usage statistics...</p>
-          <p class="small mb-0">Only hourly model counts are published. No prompts, answers, session IDs, or visitor details are exposed. Counts include demo and test traffic, not unique visitors; historical gateway logs seed the chart and new chat attempts update it. Errors without a reported model appear as unreported. Percentages are rounded.</p>
+          <p class="small mb-0">Only hourly model counts are published. No prompts, answers, session IDs, or visitor details are exposed. Counts include demo/test traffic and bounded automatic retries, not unique visitors; historical gateway logs seed the chart and new inference attempts update it. Errors without a reported model appear as unreported. Percentages are rounded.</p>
         </section>
 
         <section class="p-4 p-md-5 mb-4 bg-3 rounded-3 text-white" aria-labelledby="flow-heading">

@@ -139,7 +139,7 @@ test('preserves gateway rate-limit status', async () => {
   assert.equal((await worker.fetch(request(), env)).status, 429);
 });
 
-test('records a shared anonymous session without pinning the model', async () => {
+test('records a shared anonymous session in metadata without enabling routing sessions', async () => {
   const sessionId = 'a361ca80-77e1-4cb6-9125-9436a10d245c';
   const { calls, env } = setup();
   for (let turn = 0; turn < 2; turn++) {
@@ -149,8 +149,9 @@ test('records a shared anonymous session without pinning the model', async () =>
   }
   for (const { args } of calls.filter(call => call.args)) {
     assert.equal(args[0], 'cloudflare/auto');
-    assert.equal(args[2].gateway.metadata.session_id, sessionId);
-    assert.equal(args[2].extraHeaders['cf-aig-session-id'], sessionId);
+    assert.equal(args[2].gateway.metadata.app_conversation, sessionId);
+    assert.equal(args[2].gateway.metadata.session_id, undefined);
+    assert.equal(args[2].extraHeaders['cf-aig-session-id'], undefined);
     assert.equal(args[2].extraHeaders['cf-aig-no-session-affinity'], 'true');
     assert.equal(args[2].gateway.skipCache, true);
   }
@@ -168,7 +169,7 @@ test('supports older clients with a generated per-request session ID', async () 
   const { calls, env } = setup();
   const result = await (await worker.fetch(request(), env)).json();
   assert.match(result.sessionId, /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i);
-  assert.equal(calls[1].args[2].gateway.metadata.session_id, result.sessionId);
+  assert.equal(calls[1].args[2].gateway.metadata.app_conversation, result.sessionId);
 });
 
 test('forwards an entire 200,000-character document, including its ending', async () => {
